@@ -1,0 +1,73 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "users": {
+      ".indexOn": ["points", "email"],
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher' || (!data.exists() && auth.uid == $uid && newData.child('role').val() == 'student' && newData.child('points').val() == 0 && newData.child('authEmail').val() == auth.token.email) || (!data.exists() && auth.uid == $uid && auth.token.email == 'admin@admin.com' && newData.child('role').val() == 'teacher') || (data.exists() && auth.uid == $uid && newData.child('role').val() == data.child('role').val() && newData.child('authEmail').val() == data.child('authEmail').val() && newData.child('points').isNumber() && newData.child('points').val() >= 0 && newData.child('points').val() <= data.child('points').val()))",
+        ".validate": "newData.hasChildren(['email', 'authEmail', 'role', 'points', 'name'])"
+      }
+    },
+
+    "dailyChallenges": {
+      "$dateKey": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
+      }
+    },
+
+    "challengeAnswers": {
+      "$dateKey": {
+        ".read": "auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
+        ".write": "auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
+      }
+    },
+
+    "submissions": {
+      "$submissionId": {
+        ".read": "auth != null && (data.child('uid').val() == auth.uid || auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
+        ".write": "auth != null && (!data.exists() && newData.child('uid').val() == auth.uid && newData.child('status').val() == 'pending')"
+      }
+    },
+
+    "storeProducts": {
+      ".read": "auth != null",
+      ".indexOn": ["createdAt", "visible"],
+      "$productId": {
+        ".write": "auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
+      }
+    },
+
+    "purchases": {
+      "$purchaseId": {
+        ".read": "auth != null && (data.child('uid').val() == auth.uid || auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid && newData.child('price').isNumber() && newData.child('price').val() > 0"
+      }
+    },
+
+    "challengeWinners": {
+      "$winnerId": {
+        ".read": "auth != null",
+        ".write": false
+      }
+    },
+
+    "auctions": {
+      ".read": "auth != null",
+      ".indexOn": ["visible", "endsAt"],
+      "$auctionId": {
+        ".write": "auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')"
+      }
+    },
+
+    "bids": {
+      "$bidId": {
+        ".read": "auth != null && (data.child('uid').val() == auth.uid || auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
+      }
+    }
+  }
+}
