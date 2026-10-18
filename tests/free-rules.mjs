@@ -9,7 +9,8 @@ const admin=initializeApp(opts,'free-admin'),app=initializeApp({...opts,database
 const root=getDatabase(admin),db=getDatabase(app);
 try{
   await root.ref().set(null);
-  await db.ref('users/alice').set({name:'학생',role:'student',points:0,email:'a@test.test',authEmail:'a@test.test'});
+  // 승인 기능 도입 후 학생이 직접 만드는 프로필은 pending 이므로, 이미 승인된 학생은 관리자가 만든다(approval-rules.mjs 참고).
+  await root.ref('users/alice').set({name:'학생',role:'student',points:0,email:'a@test.test',authEmail:'a@test.test'});
   const time=Date.now(),day=dayKey(time),endAt=closesAt(day);
   const session={id:day,mode:'daily',day,endAt,games:lineup(day),seed:day,category:0,stage:0,startedAt:time,total:0,done:false};
   await db.ref(`brain/sessions/alice/${endAt}`).set(session);

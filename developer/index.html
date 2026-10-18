@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>학생 관리</title>
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" />
+    <link rel="stylesheet" href="../styles.css?v=20261019-academy" />
+    <link rel="stylesheet" href="developer.css?v=20261019-academy" />
+    <script type="module" src="developer.js?v=20261019-academy"></script>
+  </head>
+  <body>
+    <main>
+      <section id="dev-login-screen" class="auth">
+        <div class="auth-hero">
+          <span class="class-tag">선생님 전용</span>
+          <h1>학생 관리</h1>
+        </div>
+        <section class="panel auth-card" aria-label="로그인">
+          <form id="dev-login-form" class="form">
+            <label>이메일<input id="dev-login-email" type="text" autocomplete="username" required /></label>
+            <label>비밀번호<input id="dev-login-password" type="password" autocomplete="current-password" required /></label>
+            <button class="btn btn-go btn-big" type="submit">들어가기</button>
+          </form>
+          <p id="dev-login-message" class="fine">학생 계정으로는 들어갈 수 없습니다.</p>
+        </section>
+      </section>
+
+      <section id="dev-shell" class="shell dev-shell" hidden>
+        <header class="topbar">
+          <div class="topbar-title"><span class="class-tag">선생님</span><h1>학생 관리</h1></div>
+          <div class="dev-header-actions">
+            <a class="link-btn" href="../">학생 화면</a>
+            <button id="dev-logout-button" class="btn btn-small" type="button">로그아웃</button>
+          </div>
+        </header>
+
+        <section class="dev-stats" aria-label="가입자 현황">
+          <div><span id="stat-total">0</span><p>전체</p></div>
+          <div class="stat-pending"><span id="stat-pending">0</span><p>승인 대기</p></div>
+          <div><span id="stat-approved">0</span><p>승인</p></div>
+          <div><span id="stat-rejected">0</span><p>거절</p></div>
+        </section>
+
+        <section class="panel">
+          <h2 class="band band-small">승인 대기</h2>
+          <div id="pending-list" class="dev-list"><p class="empty">불러오고 있어요.</p></div>
+        </section>
+
+        <section class="panel">
+          <h2 class="band band-small">전체 가입자</h2>
+          <div class="dev-filters form">
+            <input id="dev-search" type="search" placeholder="이름 또는 이메일 검색" />
+            <select id="dev-status-filter" aria-label="상태 필터">
+              <option value="all">모든 상태</option>
+              <option value="pending">승인 대기</option>
+              <option value="approved">승인</option>
+              <option value="rejected">거절</option>
+            </select>
+          </div>
+          <div id="user-list" class="dev-list"><p class="empty">불러오고 있어요.</p></div>
+        </section>
+        <p id="dev-message" class="fine" role="status"></p>
+      </section>
+    </main>
+  </body>
+</html>

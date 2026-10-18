@@ -1,0 +1,145 @@
+.dev-shell {
+  padding-bottom: 40px;
+}
+
+.dev-shell .panel {
+  margin-bottom: 16px;
+}
+
+.dev-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dev-header-actions .link-btn {
+  margin: 0;
+}
+
+.dev-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dev-stats > div {
+  padding: 10px;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: var(--cream);
+  text-align: center;
+}
+
+.dev-stats span {
+  font-family: var(--display);
+  font-size: 26px;
+}
+
+.dev-stats p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dev-stats .stat-pending span {
+  color: var(--tomato);
+}
+
+.dev-filters {
+  grid-template-columns: 1fr 140px;
+  margin-bottom: 12px;
+}
+
+.dev-filters input,
+.dev-filters select {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.dev-list {
+  display: grid;
+  gap: 8px;
+}
+
+.dev-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.dev-user-info {
+  min-width: 0;
+}
+
+.dev-user-name {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 18px;
+}
+
+.dev-user-meta {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.dev-user-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.dev-user-actions button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  font-family: var(--display);
+  font-size: 15px;
+}
+
+.approve-button {
+  background: var(--green);
+  color: #fff;
+}
+
+.reject-button {
+  background: #ffe2d8;
+}
+
+.neutral-button {
+  background: var(--paper);
+}
+
+.status-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  font-family: var(--display);
+  font-size: 12px;
+  vertical-align: 2px;
+}
+
+.status-pending { background: #fff3b0; }
+.status-approved { background: #c9f0b9; }
+.status-rejected { background: #ffd4c8; }
+.status-teacher { background: #cfe5ff; }
+
+@media (max-width: 560px) {
+  .dev-stats { grid-template-columns: repeat(2, 1fr); }
+  .dev-filters { grid-template-columns: 1fr; }
+  .dev-user { flex-direction: column; align-items: stretch; }
+  .dev-user-actions button { flex: 1; }
+}

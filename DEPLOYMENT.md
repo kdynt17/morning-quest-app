@@ -17,7 +17,7 @@
 3. PR을 main에 병합합니다. GitHub Pages는 main의 루트 폴더를 게시합니다.
 4. 학생 계정으로 로그인하여 도전·연습·상점을 확인합니다.
 
-규칙과 프런트엔드를 연속 배포하세요. 새 규칙 적용부터 Pages 갱신까지 기존 클라이언트의 구매가 잠시 실패할 수 있습니다. 요금제 변경이나 결제 등록은 필요하지 않습니다. 무료 할당량에 도달하면 이용이 제한될 수 있습니다.
+**프런트엔드(main 병합)를 먼저, 규칙을 바로 다음에** 배포하세요. 새 규칙은 가입 시 `status: pending`을 요구하므로 규칙을 먼저 올리면 옛 화면으로 가입하는 학생이 실패합니다. 새 규칙 적용부터 Pages 갱신까지 기존 클라이언트의 구매가 잠시 실패할 수 있습니다. 요금제 변경이나 결제 등록은 필요하지 않습니다. 무료 할당량에 도달하면 이용이 제한될 수 있습니다.
 
 ## 검증
 
@@ -25,6 +25,7 @@
 - `npm run check`: JavaScript 문법 검사.
 - `node tests/ui-smoke.mjs`: Playwright/Chrome으로 5종 도전·13종 연습·모바일 레이아웃 검사. Firebase 통신은 모의 서버로 대체합니다.
 - `npx --package firebase-tools@14.0.0 firebase emulators:exec --only database --project demo-morning-quest "node tests/free-rules.mjs"`: 실제 규칙의 부정 지급·중복 지급·가격 조작 차단 검사.
+- 같은 에뮬레이터 명령에서 `node tests/approval-rules.mjs`: 가입 승인 전·거절 학생의 쓰기/읽기 차단, 기존 학생 유지, 선생님 승인 검사.
 - 같은 에뮬레이터 명령에서 `node tests/free-client-emulator.mjs`: 실제 무료 클라이언트로 잔액 이전·5종 도전·13종 연습·50P 상한·정산·구매 재시도 검증.
 
 에뮬레이터 테스트는 `npm ci --prefix functions`로 테스트용 Firebase Admin 의존성을 설치해야 합니다. CLI 14는 Java 17 환경용입니다. 테스트는 운영 DB에 실행하지 않습니다.

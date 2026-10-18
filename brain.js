@@ -1,116 +1,281 @@
 import { freeClient } from './free-client.js';
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 import { GAMES, CATEGORIES, ROUND_MS, dayKey, closesAt, lineup, rankings, question, isCorrect, scoreRound } from './functions/domain.mjs';
+import { renderQuestion } from './game-art.js';
+import { AREAS, dailyBrain, profileBrain, radarPoints } from './brain-score.js';
 
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const grid=values=>`<span class="mini-grid">${values.map(v=>`<i class="${v?'filled':''}"></i>`).join('')}</span>`;
-const towers=heights=>{
-  const project=(x,y,z)=>[130+(x-y)*24,48+(x+y)*12-z*24].join(',');
-  let cubes='';
-  for(let depth=0;depth<5;depth++)for(let y=0;y<3;y++)for(let x=0;x<3;x++)if(x+y===depth){
-    for(let z=0;z<heights[y*3+x];z++){
-      cubes+=`<polygon fill="#86a9ea" points="${project(x+1,y,z)} ${project(x+1,y+1,z)} ${project(x+1,y+1,z+1)} ${project(x+1,y,z+1)}"/><polygon fill="#4b75bf" points="${project(x,y+1,z)} ${project(x+1,y+1,z)} ${project(x+1,y+1,z+1)} ${project(x,y+1,z+1)}"/><polygon fill="#c4d8fa" points="${project(x,y,z+1)} ${project(x+1,y,z+1)} ${project(x+1,y+1,z+1)} ${project(x,y+1,z+1)}"/>`;
-    }
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+const gameOf = (id) => GAMES.find((g) => g.id === id);
+const MEDALS = ['🥇', '🥈', '🥉'];
+const RANK_LIMIT = 10;
+
+const mascot = (pose, cls = '') => `<img class="mascot ${cls}" src="assets/mascot-${pose}.webp" alt="" width="160" height="160" draggable="false" />`;
+
+// 말풍선 + 박사: DS 두뇌교실 결과 화면 느낌
+const professorSays = (text, pose = 'professor') => `<div class="professor">${mascot(pose, 'professor-img')}<p class="bubble">${text}</p></div>`;
+
+function gramsBadge(grams, caption = '말랑그램') {
+  return `<div class="grams-badge"><span>${caption}</span><strong>${grams === null ? '???' : fmt(grams)}<small>g</small></strong></div>`;
+}
+
+// 오각형 레이더: 직감(위)부터 시계 방향. 값은 0~100.
+function radar(values, { compare = null } = {}) {
+  const size = 260, c = size / 2, r = 92;
+  const ring = (k) => radarPoints(Array(5).fill(100 * k), r, c, c).map((p) => p.join(',')).join(' ');
+  const spokes = radarPoints(Array(5).fill(100), r, c, c).map(([x, y]) => `<line x1="${c}" y1="${c}" x2="${x}" y2="${y}"/>`).join('');
+  const shape = (vals) => radarPoints(vals.map((v) => v ?? 0), r, c, c).map((p) => p.join(',')).join(' ');
+  const labels = radarPoints(Array(5).fill(100), r + 26, c, c).map(([x, y], i) => `<g class="radar-label"><rect x="${x - 26}" y="${y - 14}" width="52" height="28" rx="14"/><text x="${x}" y="${y + 5}">${AREAS[i].label}</text></g>`).join('');
+  return `<svg class="radar" viewBox="-14 -6 ${size + 28} ${size + 12}" role="img" aria-label="${AREAS.map((a, i) => `${a.label} ${values[i] ?? '기록 없음'}`).join(', ')}">
+    <polygon class="radar-bg" points="${ring(1)}"/>
+    <g class="radar-grid">${[0.25, 0.5, 0.75].map((k) => `<polygon points="${ring(k)}"/>`).join('')}${spokes}</g>
+    ${compare ? `<polygon class="radar-compare" points="${shape(compare)}"/>` : ''}
+    <polygon class="radar-me" points="${shape(values)}"/>
+    ${labels}</svg>`;
+}
+
+function areaChips(values) {
+  return `<div class="area-chips">${AREAS.map((a, i) => `<span class="area-chip" style="--cat:${a.color}"><img src="${a.icon}" alt="" width="22" height="22"/>${a.label}<b>${values[i] ?? '-'}</b></span>`).join('')}</div>`;
+}
+
+export function mountBrain({ app, db, user, root }) {
+  const transport = freeClient(db, user);
+  const call = transport.action;
+  let day = dayKey(), daily = {}, best = {}, profile = {}, history = {}, session = null, events = [], selected = [], index = 0, q = null, questionAt = 0, offset = 0, busy = false, disposed = false;
+  let todaySession = null, sessionSub;
+  let subscriptions = [], daySub, clock, gameClock, lastPaint = '', errorText = '', showTop10 = false, openGame = null, showResult = false, feedbackTimer = null;
+  const now = () => Date.now() + offset;
+  const storageKey = () => `brain:${user.uid}:${session.id}:${session.stage}`;
+  const error = (e) => { errorText = e?.message?.includes('fetch') ? '인터넷 연결을 확인한 뒤 다시 시도해주세요.' : e.message || '연결하지 못했습니다. 다시 시도해주세요.'; };
+
+  // TOP 3(또는 10)만 보여주고, 내 순위와 다음 순위까지 남은 점수는 항상 보여준다.
+  function board(records, limit = 3) {
+    const rows = rankings(records);
+    const mine = rows.find((x) => x.uid === user.uid);
+    const above = mine ? rows.filter((x) => x.score > mine.score).at(-1) : null;
+    const list = rows.slice(0, limit).map((r) => `<li class="rank-row ${r.uid === user.uid ? 'is-me' : ''}"><span class="rank-medal">${MEDALS[r.rank - 1] ?? `${r.rank}위`}</span><span class="rank-name">${esc(r.name || '학생')}${r.uid === user.uid ? ' <em>나</em>' : ''}</span><b>${fmt(r.score)}</b></li>`).join('');
+    const me = mine
+      ? `<p class="my-rank"><b>내 순위 ${mine.rank}위</b> / ${rows.length}명 · ${fmt(mine.score)}점${above ? `<br><span>${above.rank}위까지 <b>+${fmt(above.score - mine.score + 1)}점</b></span>` : '<br><span>지금 1등이에요!</span>'}</p>`
+      : '<p class="my-rank">아직 내 기록이 없어요</p>';
+    return `${rows.length ? `<ol class="rank-list">${list}</ol>` : '<p class="empty">아직 기록이 없어요. 첫 기록의 주인공이 되어 보세요!</p>'}${me}`;
   }
-  return `<svg viewBox="35 -40 190 210" class="tower-art" role="img" aria-label="블록 탑 입체 그림"><g stroke="#244b89" stroke-width="1">${cubes}</g><text x="65" y="140" font-size="13">↗ 앞</text><text x="160" y="140" font-size="13">오른쪽 ↖</text></svg>`;
-};
-export function mountBrain({app,db,user,root}) {
-  const transport=freeClient(db,user); const call=transport.action;
-  let day=dayKey(),daily={},best={},profile={},history={},session=null,events=[],selected=[],index=0,q=null,questionAt=0,offset=0,busy=false,disposed=false;
-  let subscriptions=[],daySub,clock,gameClock,lastPaint='',errorText='',lastResult=null,showAll=false;
-  const now=()=>Date.now()+offset;
-  const storageKey=()=>`brain:${user.uid}:${session.id}:${session.stage}`;
-  const error=e=>{errorText=e?.message?.includes('fetch')?'인터넷 연결을 확인한 뒤 다시 시도해주세요.':e.message||'연결하지 못했습니다. 다시 시도해주세요.';};
-  function board(records,full=false) {
-    const rows=rankings(records),mine=rows.find(x=>x.uid===user.uid),above=mine?rows.filter(x=>x.score>mine.score).at(-1):null;
-    return `${rows.length?rows.slice(0,full?rows.length:3).map(r=>`<div class="brain-rank"><b>${r.rank}위</b><span>${esc(r.name||'학생')}${r.uid===user.uid?' (나)':''}</span><strong>${r.score.toLocaleString()}점</strong></div>`).join(''):'<p class="helper-text">아직 기록이 없습니다. 첫 기록을 남겨보세요.</p>'}<p class="my-rank">${mine?`내 순위 ${mine.rank}위 / ${rows.length}명 · ${mine.score.toLocaleString()}점${above?` · 다음 순위까지 +${above.score-mine.score+1}점`:''}`:'내 기록: 아직 참여 전'}</p>`;
+
+  function untilSix() {
+    const ms = Math.max(0, closesAt(day) - now());
+    const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return `${h}시간 ${m}분`;
   }
+
+  // 새로고침해도 오늘 결과를 다시 볼 수 있도록 DB의 오늘 회차를 같이 본다.
+  function dailySession() {
+    if (session && session.mode === 'daily') return session;
+    return todaySession;
+  }
+
   function dashboard() {
-    if(disposed||session&&!session.done) return;
-    const mine=daily[user.uid],rank=rankings(daily).find(x=>x.uid===user.uid)?.rank,earned=(profile.practiceEnd===closesAt(day)?[1,2,4,8,16].filter(bit=>profile.practiceMask&bit).length*10:0);
-    const reward=profile.dailyThrough?['',50]:null;
-    root.innerHTML=`<article class="brain-hero"><p class="eyebrow">DAILY BRAIN CHALLENGE · ${day}</p><h2>아침 5분, 다섯 가지 도전</h2><p>직감 → 기억 → 분석 → 계산 → 지각<br>하루 한 번 · 각 60초 · 매일 오전 6시 갱신</p><div class="daily-lineup">${lineup(day).map(id=>`<span>${GAMES.find(g=>g.id===id).name}</span>`).join('')}</div><button id="brain-start" class="primary-button" ${mine?'disabled':''}>${mine?'오늘 도전 완료':'오늘의 도전 시작 / 이어하기'}</button><p class="helper-text">중간에 나가도 새로 시작하지 않으며, 타이머는 계속 흐릅니다. 오답은 감점 없이 콤보 초기화·0.4초 대기입니다.</p>${mine?`<div class="brain-estimate"><strong>${mine.score.toLocaleString()}점 · 현재 ${rank}위</strong><p>참여 보상 50P · 순위는 기록 비교용입니다</p><small>${new Date(closesAt(day)).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} 이후 접속하면 지급됩니다.<br>무료 학급 버전에서는 순위 보너스가 없습니다.</small></div>`:''}</article>${reward?`<article class="brain-notice">챌린지 참여 보상 지급 완료 · <b>+${reward[1]}P</b></article>`:''}${lastResult?`<article class="brain-notice">${esc(lastResult)}</article>`:''}<p id="brain-error" role="status">${esc(errorText)}</p><article class="question-card"><h3>오늘의 챌린지 순위</h3>${board(daily,showAll)}<button id="brain-ranks" class="secondary-button">${showAll?'TOP 3만 보기':'전체 순위 보기'}</button></article><section><h2>자유 연습 <small>오늘 ${earned} / 50P</small></h2><p class="helper-text">챌린지 완료 후 각 영역 첫 연습 완료에 10P. 이후에도 기록에 도전할 수 있어요.</p>${CATEGORIES.map((cat,i)=>`<article class="question-card"><h3>${cat} <small>${(profile.practiceEnd===closesAt(day)&&(profile.practiceMask&(2**i)))?'10 / 10P ✓':'0 / 10P'}</small></h3><div class="practice-games">${GAMES.filter(g=>g.category===i).map(g=>`<details><summary>${g.name}</summary><p>${g.help}</p>${board(best[g.id]||{},showAll)}<button data-practice="${g.id}" class="primary-button" ${mine?'':'disabled'}>60초 연습 시작</button></details>`).join('')}</div></article>`).join('')}</section><article class="question-card"><h3>나의 Brain Profile</h3><p class="helper-text">영역별 최근 7회 게임 점수 평균입니다. IQ나 의학적 인지능력 수치가 아닙니다.</p>${CATEGORIES.map((cat,i)=>{const a=history[i]||[];return `<div class="brain-rank"><span>${cat}</span><strong>${a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length).toLocaleString()+'점':'기록 없음'}</strong><small>${a.length}/7회</small></div>`;}).join('')}</article>`;
-    root.querySelector('#brain-start').onclick=()=>start('daily');
-    root.querySelector('#brain-ranks').onclick=()=>{showAll=!showAll;dashboard();};
-    root.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>start('practice',b.dataset.practice));
+    if (disposed || (session && !session.done)) return;
+    if (showResult && dailySession()?.done) { resultScreen(dailySession()); return; }
+    const mine = daily[user.uid];
+    const rows = rankings(daily);
+    const rank = rows.find((x) => x.uid === user.uid)?.rank;
+    const practiceDone = (i) => profile.practiceEnd === closesAt(day) && (profile.practiceMask & (2 ** i));
+    const earned = profile.practiceEnd === closesAt(day) ? [1, 2, 4, 8, 16].filter((bit) => profile.practiceMask & bit).length * 10 : 0;
+    const today = lineup(day);
+    const me = profileBrain(history);
+
+    const hero = mine
+      ? `<section class="panel panel-hero is-done">
+          <h2 class="band">오늘의 두뇌 체조 완료!</h2>
+          ${professorSays(dailySession()?.done ? esc(dailyBrain(dailySession().results || []).grade.comment) : '오늘도 수고했어요! 연습으로 두뇌를 더 말랑하게 만들어 볼까요?', 'cheer')}
+          <div class="brain-estimate">
+            <div class="estimate-main"><span>오늘 점수</span><b>${fmt(mine.score)}점</b><span>현재 <b>${rank}위</b> / ${rows.length}명</span></div>
+            <div class="estimate-reward"><span>예상 보상</span><b>+50P</b><small>내일 오전 6시 확정 · ${untilSix()} 남음</small></div>
+          </div>
+          ${dailySession()?.done ? '<button id="brain-show-result" class="btn btn-ghost" type="button">오늘 결과 다시 보기</button>' : ''}
+        </section>`
+      : `<section class="panel panel-hero">
+          <h2 class="band">오늘의 두뇌 체조</h2>
+          ${professorSays('오늘의 5과목이 준비됐어요!<br>한 과목에 60초, 모두 5분이면 끝나요.')}
+          <ol class="lineup">${today.map((id, i) => `<li style="--cat:${AREAS[i].color}"><img src="${AREAS[i].icon}" alt="" width="40" height="40"/><span>${AREAS[i].label}</span><b>${esc(gameOf(id).name)}</b></li>`).join('')}</ol>
+          <button id="brain-start" class="btn btn-go btn-big" type="button">${todaySession && !todaySession.done ? '이어서 하기' : '시작!'}</button>
+          <p class="fine">하루 한 번 · 매일 오전 6시 새로 열려요 · 틀려도 감점은 없어요(콤보만 끊겨요)</p>
+        </section>`;
+
+    root.innerHTML = `${hero}
+      ${errorText ? `<p id="brain-error" class="alert" role="status">${esc(errorText)}</p>` : '<p id="brain-error" role="status"></p>'}
+      <section class="panel panel-board">
+        <h2 class="band band-small">오늘의 순위</h2>
+        ${board(daily, showTop10 ? RANK_LIMIT : 3)}
+        <button id="brain-ranks" class="btn btn-ghost btn-small" type="button">${showTop10 ? 'TOP 3만 보기' : 'TOP 10 보기'}</button>
+      </section>
+
+      <section class="panel panel-profile">
+        <h2 class="band band-small">나의 두뇌 무게</h2>
+        <div class="profile-top">${gramsBadge(me.grams)}<div class="profile-grade">${me.grade ? `<b>${me.grade.name}</b><span>${esc(me.tip)}</span>` : `<b>측정 중 ${me.measured}/5</b><span>다섯 영역을 모두 해보면 말랑그램이 나와요.</span>`}</div></div>
+        ${radar(me.areas)}
+        <p class="fine">영역별 최근 7번 기록의 평균이에요. 재미로 보는 두뇌 무게예요.</p>
+      </section>
+
+      <section class="panel panel-practice">
+        <h2 class="band band-small">자유 연습 <small>오늘 ${earned} / 50P</small></h2>
+        ${mine ? '<p class="fine">영역마다 오늘 처음 끝낸 연습에 +10P. 그 뒤로는 기록 도전만 돼요.</p>' : '<p class="lock-note">🔒 오늘의 두뇌 체조를 끝내면 열려요</p>'}
+        ${CATEGORIES.map((cat, i) => `<div class="practice-area" style="--cat:${AREAS[i].color}">
+          <div class="practice-head"><img src="${AREAS[i].icon}" alt="" width="36" height="36"/><b>${cat}</b><span class="practice-pts ${practiceDone(i) ? 'is-done' : ''}">${practiceDone(i) ? '10P ✓' : '+10P'}</span></div>
+          <div class="practice-games">${GAMES.filter((g) => g.category === i).map((g) => `<div class="practice-game ${openGame === g.id ? 'is-open' : ''}">
+              <button class="practice-toggle" type="button" data-open="${g.id}" aria-expanded="${openGame === g.id}"><b>${esc(g.name)}</b><span>${esc(g.help)}</span></button>
+              ${openGame === g.id ? `<div class="practice-detail">${board(best[g.id] || {}, 3)}</div>` : ''}
+              <button data-practice="${g.id}" class="btn btn-go btn-small" type="button" ${mine ? '' : 'disabled'}>연습</button>
+            </div>`).join('')}</div>
+        </div>`).join('')}
+      </section>`;
+
+    root.querySelector('#brain-start')?.addEventListener('click', () => start('daily'));
+    root.querySelector('#brain-show-result')?.addEventListener('click', () => { showResult = true; dashboard(); });
+    root.querySelector('#brain-ranks').onclick = () => { showTop10 = !showTop10; dashboard(); };
+    root.querySelectorAll('[data-open]').forEach((b) => { b.onclick = () => { openGame = openGame === b.dataset.open ? null : b.dataset.open; dashboard(); }; });
+    root.querySelectorAll('[data-practice]').forEach((b) => { b.onclick = () => start('practice', b.dataset.practice); });
   }
-  async function start(mode,game) {
-    if(busy)return;busy=true;errorText='';root.querySelectorAll('button').forEach(b=>b.disabled=true);
-    try {const res=(await call({action:'start',mode,game})).data;if(disposed)return;offset=res.serverNow-Date.now();session=res.session;loadStage();}
-    catch(e){error(e);}finally{busy=false;if(!session||session.done)dashboard();else tick();}
+
+  // 하루 도전 결과: 말랑그램 + 오각형 + 박사 코멘트 (DS "테스트 종료" 화면)
+  function resultScreen(s) {
+    const brain = dailyBrain(s.results || []);
+    const rows = rankings(daily);
+    const mine = rows.find((x) => x.uid === user.uid);
+    root.innerHTML = `<section class="panel panel-result">
+        <h2 class="band">테스트 종료</h2>
+        ${professorSays(`${esc(brain.grade.comment)}<br><small>${esc(brain.tip)}</small>`)}
+        <div class="result-center">${gramsBadge(brain.grams)}<p class="grade-name">${brain.grade.name}</p></div>
+        <div class="result-board">${radar(brain.areas)}</div>
+        <ol class="result-scores">${(s.results || []).map((r, i) => `<li style="--cat:${AREAS[i].color}"><img src="${AREAS[i].icon}" alt="" width="28" height="28"/><span>${AREAS[i].label} · ${esc(gameOf(r.game)?.name ?? '')}</span><b>${fmt(r.score)}점</b></li>`).join('')}</ol>
+        <div class="brain-estimate">
+          <div class="estimate-main"><span>합계</span><b>${fmt((s.results || []).reduce((sum, r) => sum + Number(r.score || 0), 0))}점</b><span>${mine ? `현재 <b>${mine.rank}위</b> / ${rows.length}명` : '순위 집계 중'}</span></div>
+          <div class="estimate-reward"><span>예상 보상</span><b>+50P</b><small>내일 오전 6시에 확정돼요</small></div>
+        </div>
+        <button id="brain-result-close" class="btn btn-go btn-big" type="button">연습하러 가기</button>
+      </section>`;
+    root.querySelector('#brain-result-close').onclick = () => { showResult = false; dashboard(); window.scrollTo({ top: 0 }); };
   }
+
+  async function start(mode, game) {
+    if (busy) return; busy = true; errorText = '';
+    root.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    try { const res = (await call({ action: 'start', mode, game })).data; if (disposed) return; offset = res.serverNow - Date.now(); session = res.session; loadStage(); }
+    catch (e) { error(e); }
+    finally { busy = false; if (!session || session.done) dashboard(); else tick(); }
+  }
+
   function loadStage() {
-    clearInterval(gameClock);lastPaint='';
-    if(session.done){lastResult=`${session.mode==='daily'?'챌린지':'연습'} 완료 · ${session.results.reduce((a,b)=>a+b.score,0)}점${session.mode==='practice'?' · 영역별 오늘 첫 연습 보상은 10P입니다.':' · 포인트는 다음 오전 6시 이후 접속하면 지급됩니다.'}`;dashboard();return;}
-    events=[];questionAt=Math.max(now(),session.startedAt);
-    try {const cached=JSON.parse(localStorage.getItem(storageKey())||'null');if(cached){events=cached.events;questionAt=cached.questionAt;scoreRound(session.games[session.stage],`${session.seed}:${session.stage}`,events);}}catch{events=[];}
-    index=events.length;selected=[];q=question(session.games[session.stage],`${session.seed}:${session.stage}`,index);
-    root.innerHTML=`<article class="brain-game"><p class="eyebrow">${session.mode==='daily'?`${session.stage+1} / 5 영역`:'자유 연습'}</p><h2>${GAMES.find(g=>g.id===session.games[session.stage]).name}</h2><p>${GAMES.find(g=>g.id===session.games[session.stage]).help}</p><div class="game-stats"><strong id="brain-time"></strong><span id="brain-score"></span></div><progress id="brain-progress" max="60" value="60"></progress><div id="brain-question"></div><p id="brain-feedback" role="status"></p><button id="brain-save" class="primary-button" hidden>결과 저장 다시 시도</button><p class="helper-text">창을 닫거나 이동해도 시간이 계속 흐릅니다.</p></article>`;
-    root.querySelector('#brain-save').onclick=finish;
-    gameClock=setInterval(tick,100);tick();
+    clearInterval(gameClock); lastPaint = '';
+    if (session.done) {
+      showResult = session.mode === 'daily';
+      if (session.mode === 'practice') errorText = '';
+      dashboard();
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    events = []; questionAt = Math.max(now(), session.startedAt);
+    try { const cached = JSON.parse(localStorage.getItem(storageKey()) || 'null'); if (cached) { events = cached.events; questionAt = cached.questionAt; scoreRound(session.games[session.stage], `${session.seed}:${session.stage}`, events); } } catch { events = []; }
+    index = events.length; selected = []; q = question(session.games[session.stage], `${session.seed}:${session.stage}`, index);
+    const game = gameOf(session.games[session.stage]);
+    const area = AREAS[game.category];
+    root.innerHTML = `<article class="brain-game" style="--cat:${area.color}">
+        <header class="play-band">
+          <img src="${area.icon}" alt="" width="44" height="44"/>
+          <div><p class="eyebrow">${session.mode === 'daily' ? `${session.stage + 1} / 5 · ${area.label}` : `자유 연습 · ${area.label}`}</p><h2>${esc(game.name)}</h2></div>
+          <div class="score-badge"><b id="brain-score">0</b><small>점</small></div>
+        </header>
+        <div class="timer-row"><div class="timer-bar"><i id="brain-bar"></i></div><strong id="brain-time">60</strong></div>
+        <div class="q-area"><div id="brain-question"></div><span id="brain-stamp" class="stamp" aria-hidden="true"></span></div>
+        <p id="brain-feedback" class="feedback" role="status"></p>
+        <button id="brain-save" class="btn btn-go" type="button" hidden>결과 저장 다시 시도</button>
+        <p class="fine">창을 닫아도 시간은 흘러요. 틀려도 감점은 없어요.</p>
+      </article>`;
+    root.querySelector('#brain-save').onclick = finish;
+    window.scrollTo({ top: 0 });
+    gameClock = setInterval(tick, 100); tick();
   }
-  function saveLocal(){try{localStorage.setItem(storageKey(),JSON.stringify({events,questionAt}));}catch{ /* memory-only if storage disabled */ }}
-  function nextQuestion(){index=events.length;selected=[];q=question(session.games[session.stage],`${session.seed}:${session.stage}`,index);lastPaint='';saveLocal();}
-  function tick(){
-    if(disposed)return;
-    const time=now(),remaining=Math.max(0,session.startedAt+ROUND_MS-time),wait=session.startedAt-time;
-    root.querySelector('#brain-time').textContent=wait>0?`다음 영역 ${Math.ceil(wait/1000)}초 후 시작`:`${Math.ceil(remaining/1000)}초`;
-    root.querySelector('#brain-progress').value=remaining/1000;
-    root.querySelector('#brain-score').textContent=`${scoreRound(session.games[session.stage],`${session.seed}:${session.stage}`,events).score}점`;
-    if(wait>0){root.querySelector('#brain-question').textContent=`이전 영역 ${session.results?.at(-1)?.score||0}점 · 다음 게임을 준비하세요.`;return;}
-    if(remaining<=0){clearInterval(gameClock);root.querySelector('#brain-question').textContent='시간 종료! 결과를 저장합니다.';finish();return;}
-    renderQuestion(time);
+
+  function saveLocal() { try { localStorage.setItem(storageKey(), JSON.stringify({ events, questionAt })); } catch { /* 저장소를 못 쓰면 메모리로만 진행 */ } }
+  function nextQuestion() { index = events.length; selected = []; q = question(session.games[session.stage], `${session.seed}:${session.stage}`, index); lastPaint = ''; saveLocal(); }
+
+  function tick() {
+    if (disposed || !session || session.done) return;
+    const time = now(), remaining = Math.max(0, session.startedAt + ROUND_MS - time), wait = session.startedAt - time;
+    const timeEl = root.querySelector('#brain-time');
+    if (!timeEl) return;
+    timeEl.textContent = wait > 0 ? `${Math.ceil(wait / 1000)}` : `${Math.ceil(remaining / 1000)}`;
+    root.querySelector('#brain-bar').style.width = `${wait > 0 ? 100 : (remaining / ROUND_MS) * 100}%`;
+    root.querySelector('#brain-bar').classList.toggle('is-hurry', wait <= 0 && remaining < 10000);
+    root.querySelector('#brain-score').textContent = fmt(scoreRound(session.games[session.stage], `${session.seed}:${session.stage}`, events).score);
+    if (wait > 0) {
+      if (lastPaint === 'wait') return;
+      lastPaint = 'wait';
+      const prev = session.results?.at(-1);
+      const prevArea = prev ? AREAS[gameOf(prev.game).category] : null;
+      root.querySelector('#brain-question').innerHTML = `<div class="between">${mascot('cheer', 'between-img')}<p>${prevArea ? `${prevArea.label} 끝! <b>${fmt(prev.score)}점</b>` : '준비!'}</p><p class="fine">곧 다음 과목이 시작돼요</p></div>`;
+      return;
+    }
+    if (remaining <= 0) { clearInterval(gameClock); root.querySelector('#brain-question').innerHTML = `<div class="between">${mascot('think', 'between-img')}<p>시간 끝! 결과를 저장하고 있어요…</p></div>`; finish(); return; }
+    paintQuestion(time);
   }
-  function renderQuestion(time){
-    const age=time-questionAt,preview=age<q.preview,seq=session.games[session.stage]==='sequence',lit=seq&&preview?Math.floor(age/650):-1;
-    const stamp=`${index}:${preview}:${lit}:${selected.join(',')}`;if(stamp===lastPaint)return;lastPaint=stamp;
-    const host=root.querySelector('#brain-question');
-    let art='';
-    if(q.target) art=`<div class="shape-pair"><div>목표${grid(q.target)}</div>${q.given?`<div>주어진 조각${grid(q.given)}</div>`:''}</div>`;
-    if(q.track) art=`<div class="track-grid" style="grid-template-columns:repeat(${q.trackSize},50px)">${q.track.map(v=>`<span>${v}</span>`).join('')}</div>`;
-    if(q.lines){const lines=[...q.lines];lines.splice(q.slot,0,-1);art=`<pre class="ladder-art">1   2   3   4\n${lines.map(x=>x===-1?'│ ? │ ? │ ? │':[0,1,2,3].map((_,i)=>i===3?'│':i===x?'├───':'│   ').join('')).join('\n')}\n1   2   3   4</pre>`;}
-    if(q.heights) art=`${towers(q.heights)}<details><summary>블록 높이 보기</summary><p class="helper-text">위에서 본 탑 배치 · 숫자는 블록 높이<br>아래쪽 = 앞 / 오른쪽 = 오른쪽 시점</p><div class="height-grid">${q.heights.map(v=>`<span style="--height:${v}">${v}</span>`).join('')}</div></details>`;
-    const choiceMarkup=q.choices.map((v,i)=>{
-      let label=esc(v),extra='';
-      if(q.type==='memory'){label=preview&&!seq?esc(v):'';extra=preview&&seq&&q.answer[lit]===i?' lit':'';}
-      if(q.patterns)label=grid(q.patterns[i]);
-      if(q.projections)label=`<span class="projection">${q.projections[i].map(h=>`<i style="height:${h*18+2}px"></i>`).join('')}</span>`;
-      return `<button class="game-choice ${selected.includes(i)?'picked':''}${extra}" data-answer="${i}" aria-label="${q.type==='memory'?`${i+1}번 칸`:q.patterns||q.projections?esc(v):esc(v)}" ${preview||selected.includes(i)?'disabled':''} ${q.sizes&&session.games[session.stage]==='largest'?`style="font-size:${q.sizes[i]}px"`:''}>${label||'·'}</button>`;
-    }).join('');
-    host.innerHTML=`<h3>${esc(q.prompt)}</h3>${q.caption?`<p>${esc(q.caption)}</p>`:''}${preview?'<p class="remember-label">기억하세요…</p>':''}${art}<div class="game-choices ${q.choices.length===9?'nine':''}">${choiceMarkup}</div>${['sum','remove'].includes(q.type)?'<button id="brain-confirm" class="secondary-button">완성 확인</button><button id="brain-reset" class="secondary-button">선택 되돌리기</button>':''}`;
-    host.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>choose(Number(b.dataset.answer)));
-    if(host.querySelector('#brain-confirm')){host.querySelector('#brain-confirm').onclick=()=>answer(selected);host.querySelector('#brain-reset').onclick=()=>{selected=[];lastPaint='';};}
+
+  function paintQuestion(time) {
+    const age = time - questionAt, preview = age < q.preview, game = session.games[session.stage];
+    const lit = game === 'sequence' && preview ? Math.floor(age / 650) : -1;
+    const stamp = `${index}:${preview}:${lit}:${selected.join(',')}`; if (stamp === lastPaint) return; lastPaint = stamp;
+    const host = root.querySelector('#brain-question');
+    host.innerHTML = renderQuestion(game, q, { preview, lit, selected });
+    host.querySelectorAll('[data-answer]').forEach((b) => { b.onclick = () => choose(Number(b.dataset.answer)); });
+    host.querySelector('#brain-confirm')?.addEventListener('click', () => answer(selected));
+    host.querySelector('#brain-reset')?.addEventListener('click', () => { selected = []; lastPaint = ''; });
   }
-  function choose(i){
-    if(now()<questionAt+Math.max(180,q.preview)||now()>=session.startedAt+ROUND_MS)return;
-    if(q.type==='choice'){answer([i]);return;}
-    if(selected.includes(i))return;selected.push(i);lastPaint='';
-    if(['memory','sequence'].includes(q.type)){
-      if(q.answer[selected.length-1]!==i||selected.length===q.answer.length)answer(selected);
+
+  function choose(i) {
+    if (now() < questionAt + Math.max(180, q.preview) || now() >= session.startedAt + ROUND_MS) return;
+    if (q.type === 'choice') { answer([i]); return; }
+    if (selected.includes(i)) return; selected.push(i); lastPaint = '';
+    if (['memory', 'sequence'].includes(q.type)) {
+      if (q.answer[selected.length - 1] !== i || selected.length === q.answer.length) answer(selected);
     }
   }
-  function answer(values){
-    const at=now()-session.startedAt;if(now()<questionAt+Math.max(180,q.preview)||at>ROUND_MS)return;
-    const ok=isCorrect(q,values);events.push({at,selected:[...values]});
-    root.querySelector('#brain-feedback').textContent=ok?'정답! 점수가 쌓였어요.':'괜찮아요. 감점 없이 다음 문제!';
-    questionAt=now()+(ok?0:400);nextQuestion();
+
+  function answer(values) {
+    const at = now() - session.startedAt; if (now() < questionAt + Math.max(180, q.preview) || at > ROUND_MS) return;
+    const ok = isCorrect(q, values); events.push({ at, selected: [...values] });
+    const feedback = root.querySelector('#brain-feedback');
+    feedback.textContent = ok ? '정답!' : '아쉬워요, 다음 문제!';
+    const stampEl = root.querySelector('#brain-stamp');
+    stampEl.className = `stamp ${ok ? 'is-ok' : 'is-bad'}`;
+    void stampEl.offsetWidth;
+    stampEl.classList.add('is-show');
+    clearTimeout(feedbackTimer);
+    feedbackTimer = setTimeout(() => stampEl.classList.remove('is-show'), 380);
+    questionAt = now() + (ok ? 0 : 400); nextQuestion();
   }
-  async function finish(){
-    if(busy)return;busy=true;
-    const button=root.querySelector('#brain-save');button.hidden=true;
-    try{const res=(await call({action:'finish',mode:session.mode,day:session.day,sessionId:session.id,stage:session.stage,events})).data;if(disposed)return;try{localStorage.removeItem(storageKey());}catch{}session=res.session;offset=res.serverNow-Date.now();loadStage();}
-    catch(e){error(e);root.querySelector('#brain-feedback').textContent=errorText;button.hidden=false;}
-    finally{busy=false;}
+
+  async function finish() {
+    if (busy) return; busy = true;
+    const button = root.querySelector('#brain-save'); if (button) button.hidden = true;
+    try { const res = (await call({ action: 'finish', mode: session.mode, day: session.day, sessionId: session.id, stage: session.stage, events })).data; if (disposed) return; try { localStorage.removeItem(storageKey()); } catch { /* 무시 */ } session = res.session; offset = res.serverNow - Date.now(); loadStage(); }
+    catch (e) { error(e); const fb = root.querySelector('#brain-feedback'); if (fb) fb.textContent = errorText; if (button) button.hidden = false; }
+    finally { busy = false; }
   }
-  function watchDay(){
-    daySub?.();daily={};
-    daySub=onValue(ref(db,`brain/daily/${closesAt(day)}`),s=>{daily=s.val()||{};dashboard();},e=>{error(e);dashboard();});
+
+  function watchDay() {
+    sessionSub?.(); todaySession = null;
+    sessionSub = onValue(ref(db, `brain/sessions/${user.uid}/${closesAt(day)}`), (s) => { todaySession = s.val(); dashboard(); }, () => {});
+    daySub?.(); daily = {};
+    daySub = onValue(ref(db, `brain/daily/${closesAt(day)}`), (s) => { daily = s.val() || {}; dashboard(); }, (e) => { error(e); dashboard(); });
   }
-  subscriptions.push(onValue(ref(db,'.info/serverTimeOffset'),s=>{offset=s.val()||0;}));
-  subscriptions.push(onValue(ref(db,`wallets/${user.uid}`),s=>{profile=s.val()||{};dashboard();}));
-  subscriptions.push(onValue(ref(db,'brain/best'),s=>{best=s.val()||{};dashboard();},()=>{}));
-  subscriptions.push(onValue(ref(db,`brain/history/${user.uid}`),s=>{history=s.val()||{};dashboard();},()=>{}));
-  watchDay();dashboard(); transport.settle().catch(e=>{error(e);dashboard();});
-  clock=setInterval(()=>{const next=dayKey(now());if(next!==day){day=next;session=null;clearInterval(gameClock);errorText='오전 6시, 새로운 도전이 열렸습니다.';watchDay();dashboard();transport.settle().catch(e=>{error(e);dashboard();});}},1000);
-  return ()=>{disposed=true;transport.stop();subscriptions.forEach(f=>f());daySub?.();clearInterval(clock);clearInterval(gameClock);root.innerHTML='';};
+
+  subscriptions.push(onValue(ref(db, '.info/serverTimeOffset'), (s) => { offset = s.val() || 0; }));
+  subscriptions.push(onValue(ref(db, `wallets/${user.uid}`), (s) => { profile = s.val() || {}; dashboard(); }));
+  subscriptions.push(onValue(ref(db, 'brain/best'), (s) => { best = s.val() || {}; dashboard(); }, () => {}));
+  subscriptions.push(onValue(ref(db, `brain/history/${user.uid}`), (s) => { history = s.val() || {}; dashboard(); }, () => {}));
+  watchDay(); dashboard(); transport.settle().catch((e) => { error(e); dashboard(); });
+  clock = setInterval(() => {
+    const next = dayKey(now());
+    if (next !== day) { day = next; session = null; showResult = false; clearInterval(gameClock); errorText = '오전 6시, 새로운 두뇌 체조가 열렸어요!'; watchDay(); dashboard(); transport.settle().catch((e) => { error(e); dashboard(); }); }
+  }, 1000);
+  return () => { disposed = true; transport.stop(); subscriptions.forEach((f) => f()); daySub?.(); sessionSub?.(); clearInterval(clock); clearInterval(gameClock); root.innerHTML = ''; };
 }

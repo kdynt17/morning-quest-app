@@ -2,155 +2,172 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>아침 두뇌 챌린지</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffd23f" />
+    <title>아침 두뇌 체조</title>
     <meta http-equiv="Cache-Control" content="no-store" />
-    <link rel="stylesheet" href="styles.css?v=20261018-brain" />
-    <script type="module" src="app.js?v=20261018-brain"></script>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="두뇌 체조" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" />
+    <link rel="stylesheet" href="styles.css?v=20261019-academy" />
+    <script type="module" src="app.js?v=20261019-academy"></script>
   </head>
   <body>
     <main>
-      <section id="auth-screen" class="auth-screen">
+      <!-- 로그인 확인 중: 저장된 로그인 정보가 있으면 이 화면에서 바로 들어간다 -->
+      <section id="splash-screen" class="splash" aria-live="polite">
+        <img src="assets/mascot-think.webp" alt="" width="140" height="140" />
+        <h1>아침 두뇌 체조</h1>
+        <p id="splash-text">두뇌 깨우는 중…</p>
+      </section>
+
+      <!-- 로그인 / 회원가입 -->
+      <section id="auth-screen" class="auth" hidden>
         <div class="auth-hero">
-          <p class="eyebrow">Morning Quest</p>
-          <h1>아침 두뇌 챌린지</h1>
-          <p>직감 · 기억 · 분석 · 계산 · 지각. 매일 다섯 가지 게임에 도전하고 포인트를 모으세요.</p>
+          <span class="class-tag">2학년 5반</span>
+          <h1>아침 두뇌 체조</h1>
+          <div class="professor auth-professor">
+            <img class="mascot professor-img" src="assets/mascot-professor.webp" alt="" width="150" height="150" />
+            <p class="bubble">매일 아침 5분!<br />직감·기억·분석·계산·지각<br />다섯 과목으로 두뇌를 말랑하게!</p>
+          </div>
         </div>
-        <section class="auth-card" aria-label="로그인과 회원가입">
-          <div class="auth-mode-tabs" role="tablist" aria-label="로그인 또는 회원가입">
+        <section class="panel auth-card" aria-label="로그인과 회원가입">
+          <div class="tabs" role="tablist" aria-label="로그인 또는 회원가입">
             <button id="show-login-button" class="active" type="button" role="tab" aria-controls="login-panel" aria-selected="true">로그인</button>
             <button id="show-signup-button" type="button" role="tab" aria-controls="signup-panel" aria-selected="false">회원가입</button>
           </div>
           <section id="login-panel" class="auth-panel active-auth-panel" aria-label="로그인">
-            <form id="login-form" class="stack-form">
-              <label>이메일<input id="login-email" type="text" placeholder="202620501@junghwa.sen.ms.kr" autocomplete="username" required /></label>
-              <label>비밀번호<input id="login-password" type="password" placeholder="비밀번호" autocomplete="current-password" required /></label>
-              <button class="primary-button" type="submit">들어가기</button>
+            <form id="login-form" class="form">
+              <label>이메일<input id="login-email" name="email" type="text" inputmode="email" placeholder="202620501@junghwa.sen.ms.kr" autocomplete="username" required /></label>
+              <label>비밀번호<input id="login-password" name="password" type="password" placeholder="비밀번호" autocomplete="current-password" required /></label>
+              <label class="check"><input id="remember-me" type="checkbox" checked /> 로그인 상태 유지 <small>(공용 컴퓨터면 끄세요)</small></label>
+              <button class="btn btn-go btn-big" type="submit">들어가기</button>
             </form>
+            <button id="forgot-password-button" class="link-btn" type="button">비밀번호를 잊었어요</button>
           </section>
           <section id="signup-panel" class="auth-panel" aria-label="회원가입">
-            <form id="signup-form" class="stack-form">
+            <form id="signup-form" class="form">
               <label>이름 또는 번호<input id="signup-name" type="text" placeholder="1번 김민준" autocomplete="name" maxlength="80" required /></label>
               <label>이메일<input id="signup-email" type="email" placeholder="202620501@junghwa.sen.ms.kr" autocomplete="email" required /></label>
               <label>비밀번호<input id="signup-password" type="password" placeholder="6자 이상" autocomplete="new-password" minlength="6" required /></label>
-              <button class="primary-button" type="submit">가입하고 시작하기</button>
+              <button class="btn btn-go btn-big" type="submit">가입 신청하기</button>
             </form>
-            <p id="signup-message" class="helper-text">이메일 인증 없이 바로 가입됩니다.</p>
+            <p id="signup-message" class="fine">가입 후 선생님이 승인하면 시작할 수 있어요.</p>
           </section>
-          <p id="auth-message" class="helper-text">이메일과 비밀번호로 로그인하세요.</p>
+          <p id="auth-message" class="fine">이메일과 비밀번호로 로그인하세요.</p>
         </section>
       </section>
 
-      <section id="app-shell" class="app-shell" hidden>
-        <header class="app-header">
-          <div>
-            <p id="today-label" class="eyebrow">Today</p>
-            <h1 id="page-title">오늘의 문제</h1>
+      <!-- 승인 대기 -->
+      <section id="pending-screen" class="auth" hidden>
+        <div class="auth-hero">
+          <span class="class-tag">2학년 5반</span>
+          <h1>아침 두뇌 체조</h1>
+        </div>
+        <section class="panel auth-card" aria-label="가입 승인 대기">
+          <div class="professor">
+            <img class="mascot professor-img" src="assets/mascot-think.webp" alt="" width="120" height="120" />
+            <p id="pending-message" class="bubble">선생님 승인을 기다리고 있어요.</p>
           </div>
+          <button id="pending-logout-button" class="btn btn-ghost" type="button">로그아웃</button>
+        </section>
+      </section>
+
+      <!-- 앱 -->
+      <section id="app-shell" class="shell" hidden>
+        <header class="topbar">
+          <div class="topbar-title">
+            <span class="class-tag">2-5</span>
+            <h1 id="page-title">아침 두뇌 체조</h1>
+            <p id="today-label" class="topbar-date"></p>
+          </div>
+          <button class="points-pill" type="button" data-target-page="profile" aria-label="내 포인트">
+            <img src="assets/mascot-medal.webp" alt="" width="30" height="30" /><b id="my-points">0</b>P
+          </button>
         </header>
 
         <section id="home-page" class="page active-page" data-page="home">
-          <article class="points-card">
-            <div>
-              <p class="eyebrow">My Points</p>
-              <h2><span id="my-points">0</span>P</h2>
-            </div>
-            <p id="profile-message">오늘 문제를 확인해보세요.</p>
-          </article>
-          <div id="brain-root"></div>
-          <details class="legacy-challenge"><summary>선생님의 창의력 문제</summary>
-          <article class="question-card">
-            <div class="card-topline">
-              <span id="challenge-date">오늘</span>
-              <span id="challenge-status" class="pill">불러오는 중</span>
-            </div>
-            <h2 id="challenge-title">오늘의 문제가 아직 등록되지 않았습니다.</h2>
-            <img id="challenge-image" class="content-image" alt="" hidden />
-            <p id="challenge-description">선생님이 문제를 등록하면 자동으로 표시됩니다.</p>
-            <form id="answer-form" class="stack-form">
-              <label for="answer">내 답변</label>
-              <textarea id="answer" rows="5" placeholder="답을 입력하세요" required></textarea>
-              <button class="primary-button" type="submit">정답 제출</button>
-              <p id="answer-message" class="helper-text"></p>
-            </form>
-          </article>
-          </details>
+          <div id="brain-root" class="brain-root"></div>
         </section>
 
         <section id="leaderboard-page" class="page" data-page="leaderboard">
-          <div class="section-title"><p class="eyebrow">Leaderboard</p><h2>포인트 순위</h2></div>
-          <div id="leaderboard-list" class="rank-list"><p class="empty-text">순위를 불러오고 있어요.</p></div>
+          <section class="panel panel-board">
+            <h2 class="band band-small">포인트 순위</h2>
+            <p class="fine">지금까지 모은 포인트예요. 두뇌 체조 순위는 홈에서 볼 수 있어요.</p>
+            <ol id="leaderboard-list" class="rank-list"><li class="empty">순위를 불러오고 있어요.</li></ol>
+          </section>
         </section>
 
         <section id="store-page" class="page" data-page="store">
-          <div class="section-title"><p class="eyebrow">Store</p><h2>포인트 상점</h2></div>
-          <div id="store-list" class="store-list"><p class="empty-text">상품을 불러오고 있어요.</p></div>
+          <section class="panel">
+            <h2 class="band band-small">포인트 상점</h2>
+            <div id="store-list" class="store-list"><p class="empty">상품을 불러오고 있어요.</p></div>
+          </section>
         </section>
 
         <section id="profile-page" class="page" data-page="profile">
-          <div class="section-title"><p class="eyebrow">Profile</p><h2>내 정보</h2></div>
-          <article class="profile-card">
-            <dl>
+          <section class="panel">
+            <h2 class="band band-small">내 정보</h2>
+            <dl class="info-list">
               <div><dt>이름</dt><dd id="profile-name">-</dd></div>
               <div><dt>아이디</dt><dd id="profile-email">-</dd></div>
               <div><dt>역할</dt><dd id="profile-role">-</dd></div>
               <div><dt>포인트</dt><dd><span id="profile-points">0</span>P</dd></div>
             </dl>
-            <button id="logout-button" class="secondary-button profile-logout" type="button">나가기</button>
-          </article>
+            <p id="profile-message" class="fine"></p>
+            <button id="logout-button" class="btn btn-ghost" type="button">로그아웃</button>
+          </section>
+          <section class="panel">
+            <h2 class="band band-small">앱처럼 쓰기</h2>
+            <p class="fine">홈 화면에 추가하면 앱처럼 바로 열리고 로그인도 유지돼요.<br />아이폰: 사파리 공유 버튼 → <b>홈 화면에 추가</b><br />안드로이드: 크롬 메뉴(⋮) → <b>홈 화면에 추가</b><br />카카오톡 안에서 열면 로그인이 자주 풀려요. 크롬이나 사파리로 열어 주세요.</p>
+          </section>
         </section>
 
         <section id="admin-page" class="page" data-page="admin">
-          <div class="section-title"><p class="eyebrow">Teacher</p><h2>선생님 관리</h2></div>
-          <article class="admin-card">
-            <h3>오늘 문제 올리기</h3>
-            <form id="challenge-form" class="stack-form">
-              <label>날짜<input id="admin-challenge-date" type="date" required /></label>
-              <label>문제 제목<input id="admin-challenge-title" type="text" placeholder="오늘의 창의력 문제" required /></label>
-              <label>문제 내용<textarea id="admin-challenge-description" rows="4" placeholder="학생들이 볼 문제를 적어주세요." required></textarea></label>
-              <label>문제 사진 주소<input id="admin-challenge-image-url" type="url" placeholder="https://..." /></label>
-              <label>문제 사진 파일<input id="admin-challenge-image-file" type="file" accept="image/*" /></label>
-              <label>정답<input id="admin-answer" type="text" placeholder="선생님만 볼 정답" /></label>
-              <button class="primary-button" type="submit">문제 저장</button>
-            </form>
-          </article>
-          <article class="admin-card">
-            <h3>상점 상품 추가</h3>
-            <form id="product-form" class="stack-form">
+          <a class="btn btn-ghost" href="developer/">가입 승인 · 학생 관리 페이지 열기</a>
+          <section class="panel">
+            <h2 class="band band-small">상점 상품 추가</h2>
+            <form id="product-form" class="form">
               <label>상품 이름<input id="admin-product-title" type="text" placeholder="간식 교환권" required /></label>
               <label>상품 설명<textarea id="admin-product-description" rows="3" placeholder="학생들에게 보일 설명을 적어주세요." required></textarea></label>
               <label>가격<input id="admin-product-price" type="number" min="1" value="10" required /></label>
               <label>상품 사진 주소<input id="admin-product-image-url" type="url" placeholder="https://..." /></label>
               <label>상품 사진 파일<input id="admin-product-image-file" type="file" accept="image/*" /></label>
-              <button class="primary-button" type="submit">상품 저장</button>
+              <button class="btn btn-go" type="submit">상품 저장</button>
             </form>
-          </article>
-          <p id="admin-message" class="helper-text"></p>
+          </section>
+          <p id="admin-message" class="fine" role="status"></p>
         </section>
 
         <nav class="bottom-nav" aria-label="메뉴">
-          <button class="active" type="button" data-target-page="home">두뇌 게임</button>
-          <button type="button" data-target-page="leaderboard">순위</button>
-          <button type="button" data-target-page="store">상점</button>
-          <button type="button" data-target-page="profile">내 정보</button>
-          <button id="admin-nav-button" type="button" data-target-page="admin" hidden>관리</button>
+          <button class="active" type="button" data-target-page="home"><img src="assets/mascot-hello.webp" alt="" width="30" height="30" />두뇌 체조</button>
+          <button type="button" data-target-page="leaderboard"><img src="assets/mascot-medal.webp" alt="" width="30" height="30" />순위</button>
+          <button type="button" data-target-page="store"><img src="assets/animal-pig.webp" alt="" width="30" height="30" />상점</button>
+          <button type="button" data-target-page="profile"><img src="assets/mascot-professor.webp" alt="" width="30" height="30" />내 정보</button>
+          <button id="admin-nav-button" type="button" data-target-page="admin" hidden><img src="assets/cat-analysis.webp" alt="" width="30" height="30" />관리</button>
         </nav>
       </section>
 
-      <dialog id="product-dialog" class="product-dialog">
+      <dialog id="product-dialog" class="dialog">
         <form method="dialog">
-          <button id="close-product-dialog" class="icon-button dialog-close" type="submit" aria-label="닫기">×</button>
+          <button id="close-product-dialog" class="dialog-close" type="submit" aria-label="닫기">×</button>
         </form>
         <img id="dialog-product-image" class="dialog-image" alt="" hidden />
-        <p id="dialog-product-price" class="eyebrow">0점</p>
+        <p id="dialog-product-price" class="price-tag">0P</p>
         <h2 id="dialog-product-title">상품</h2>
         <p id="dialog-product-description"></p>
         <div class="purchase-box">
-          <p id="dialog-balance">현재 잔액 0점</p>
-          <p id="dialog-after-balance">구매 후 잔액 0점</p>
+          <p id="dialog-balance">현재 잔액 0P</p>
+          <p id="dialog-after-balance">구매 후 잔액 0P</p>
         </div>
-        <button id="buy-product-button" class="primary-button" type="button">제품 구입</button>
-        <p id="purchase-message" class="helper-text"></p>
+        <button id="buy-product-button" class="btn btn-go btn-big" type="button">구매하기</button>
+        <p id="purchase-message" class="fine"></p>
       </dialog>
     </main>
   </body>

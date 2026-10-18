@@ -20,15 +20,15 @@ const server=createServer(async(req,res)=>{
   if(url.pathname==='/mock.js'){
     res.end(`const listeners=[];export const getFunctions=()=>({});export const ref=(_,path)=>path;export function onValue(path,cb){const x={path,cb};listeners.push(x);refresh(x);return()=>listeners.splice(listeners.indexOf(x),1);}async function refresh(x){const v=await(await fetch('/snapshot?path='+encodeURIComponent(x.path))).json();x.cb({val:()=>v});}export const httpsCallable=()=>async data=>{const r=await fetch('/action',{method:'POST',body:JSON.stringify({...data,now:Date.now()})});const v=await r.json();if(v.error)throw Error(v.error);await Promise.all(listeners.map(refresh));return {data:v};};`);return;
   }
-  if(url.pathname==='/snapshot'){let v=url.searchParams.get('path')==='.info/serverTimeOffset'?0:state; if(typeof v==='object') for(const k of url.searchParams.get('path').replace(/brain\/daily\/(\d{13})/,(_,n)=>'brain/daily/'+dayKey(Number(n)-1)).split('/'))v=v?.[k];res.end(JSON.stringify(v??null));return;}
+  if(url.pathname==='/snapshot'){let v=url.searchParams.get('path')==='.info/serverTimeOffset'?0:state; if(typeof v==='object') for(const k of url.searchParams.get('path').replace(/brain\/(daily|sessions\/tester)\/(\d{13})/,(_,p,n)=>'brain/'+p+'/'+dayKey(Number(n)-1)).split('/'))v=v?.[k];res.end(JSON.stringify(v??null));return;}
   if(url.pathname==='/action'){
     let body='';for await(const c of req)body+=c;const input=JSON.parse(body);
     try{state=applyAction(structuredClone(state),'tester',input.action,input,input.now);const key=input.mode==='daily'?(input.day||dayKey(input.now)):'practice';res.end(JSON.stringify({session:state.brain.sessions.tester[key],serverNow:input.now}));}catch(e){res.end(JSON.stringify({error:e.message}));}return;
   }
-  try{const path=url.pathname.slice(1);if(!['brain.js','styles.css','functions/domain.mjs'].includes(path))throw Error();let body=await readFile(new URL('../'+path,import.meta.url),'utf8');if(path==='brain.js')body=body.replaceAll(/https:\/\/www.gstatic.com\/firebasejs\/10.12.5\/firebase-(functions|database).js/g,'/mock.js');if(path.endsWith('.css'))res.setHeader('Content-Type','text/css');res.end(body);}catch{res.statusCode=404;res.end('');}
+  try{const path=url.pathname.slice(1);if(path.startsWith('assets/')){res.setHeader('Content-Type',path.endsWith('.png')?'image/png':'image/webp');res.end(await readFile(new URL('../'+path,import.meta.url)));return;}if(!['brain.js','styles.css','functions/domain.mjs','game-art.js','brain-score.js'].includes(path))throw Error();let body=await readFile(new URL('../'+path,import.meta.url),'utf8');if(path==='brain.js')body=body.replaceAll(/https:\/\/www.gstatic.com\/firebasejs\/10.12.5\/firebase-(functions|database).js/g,'/mock.js');if(path.endsWith('.css'))res.setHeader('Content-Type','text/css');res.end(body);}catch{res.statusCode=404;res.end('');}
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
-const browser=await chromium.launch({channel:'chrome',headless:true});
+const browser=await chromium.launch(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{channel:'chrome',headless:true});
 try{
   const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install({time:new Date('2026-10-18T00:00:00Z')});
@@ -51,12 +51,16 @@ try{
   assert.equal(state.brain.daily['2026-10-18'].tester.score,500);
   assert.equal(state.users.tester.points,0);
   await mkdir(new URL('../test-results/',import.meta.url),{recursive:true});
-  await page.screenshot({path:fileURLToPath(new URL('../test-results/mobile-dashboard.png',import.meta.url)),fullPage:true});
+  const shot=name=>page.screenshot({path:fileURLToPath(new URL(`../test-results/${name}.png`,import.meta.url)),fullPage:true});
+  await shot('mobile-result');
+  await page.locator('#brain-result-close').click();await page.locator('[data-practice]:not(:disabled)').first().waitFor();
+  await shot('mobile-dashboard');
   for(const game of GAMES){
-    const details=page.locator('details').filter({has:page.locator(`[data-practice="${game.id}"]`)});await details.locator('summary').click();await page.locator(`[data-practice="${game.id}"]`).click();await page.locator('#brain-time').waitFor();await page.clock.fastForward(10000);
+    await page.locator(`[data-practice="${game.id}"]`).click();await page.locator('#brain-time').waitFor();await page.clock.fastForward(10000);
     assert.ok(await page.locator('[data-answer]').count()>0);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,game.id+' overflows mobile');
-    await page.clock.fastForward(61000);await page.locator('#brain-start').waitFor();
+    await shot(`game-${game.id}`);
+    await page.clock.fastForward(61000);await page.locator('[data-practice]:not(:disabled)').first().waitFor();
   }
   assert.equal(state.users.tester.points,50);
   assert.deepEqual(errors,[]);console.log('PASS: five daily rounds, all 13 practice games, mobile layout, 50P daily cap, no browser errors.');
