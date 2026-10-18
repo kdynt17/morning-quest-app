@@ -23,6 +23,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 import { firebaseConfig } from "./firebase-config.js";
+import { mountBrain } from "./brain.js";
+import { freeClient } from "./free-client.js";
 
 const ADMIN_LOGIN = "admin@admin";
 const ADMIN_AUTH_EMAIL = "admin@admin.com";
@@ -79,12 +81,16 @@ let auth;
 let db;
 let currentUser = null;
 let currentProfile = null;
+let walletPoints = null;
 let currentChallengeId = null;
 let selectedProduct = null;
 let unsubscribers = [];
+let firebaseApp;
+let disposeBrain;
+let purchaseRequestId;
 
 const pageNames = {
-  home: "오늘의 문제",
+  home: "오늘의 두뇌 챌린지",
   leaderboard: "포인트 순위",
   store: "포인트 상점",
   profile: "내 정보",
@@ -95,6 +101,7 @@ if (setupRequired) {
   setMessage(authMessage, "Firebase 설정값을 firebase-config.js에 넣어주세요.");
 } else {
   const app = initializeApp(firebaseConfig);
+  firebaseApp = app;
   auth = getAuth(app);
   db = getDatabase(app);
 
@@ -117,8 +124,10 @@ if (setupRequired) {
 
   onAuthStateChanged(auth, async (user) => {
     clearSubscriptions();
+    disposeBrain?.();
     currentUser = user;
     currentProfile = null;
+    walletPoints = null;
     selectedProduct = null;
 
     if (!user) {
@@ -127,13 +136,16 @@ if (setupRequired) {
     }
 
     showSignedIn();
-    currentProfile = await ensureProfile(user);
+    try { currentProfile = await ensureProfile(user); }
+    catch (error) { showSignedOut(); setMessage(authMessage, authErrorMessage(error.code)); return; }
+    if (currentUser?.uid !== user.uid) return;
     renderProfile(user, currentProfile);
     showPage("home");
     subscribeProfile();
     subscribeChallenge();
     subscribeLeaderboard();
     subscribeStore();
+    disposeBrain = mountBrain({app, db, user, root: $("#brain-root")});
   });
 }
 
@@ -161,15 +173,8 @@ async function handleSignup(event) {
     setMessage(signupMessage, "가입하는 중입니다.");
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName: name });
-    await set(ref(db, `users/${credential.user.uid}`), {
-      name,
-      email,
-      authEmail: credential.user.email,
-      role: "student",
-      points: 0,
-      todayResult: "-",
-      createdAt: serverTimestamp(),
-    });
+    await ensureProfile(credential.user);
+    await update(ref(db, `users/${credential.user.uid}`), { name });
     setMessage(signupMessage, "가입되었습니다.");
   } catch (error) {
     setMessage(signupMessage, authErrorMessage(error.code));
@@ -209,11 +214,18 @@ async function ensureProfile(user) {
     todayResult: "-",
     createdAt: serverTimestamp(),
   };
-  await set(userRef, profile);
+  try { await set(userRef, profile); }
+  catch (error) {
+    // Auth listener and signup completion may create the initial profile concurrently.
+    const existing = await get(userRef);
+    if (existing.exists()) return existing.val();
+    throw error;
+  }
   return profile;
 }
 
 function subscribeProfile() {
+  unsubscribers.push(onValue(ref(db, `wallets/${currentUser.uid}/points`), s => {walletPoints = s.val(); if(currentProfile) renderProfile(currentUser,currentProfile);}));
   const unsubscribe = onValue(ref(db, `users/${currentUser.uid}`), (snapshot) => {
     if (!snapshot.exists()) return;
     currentProfile = snapshot.val();
@@ -225,12 +237,12 @@ function subscribeProfile() {
 function renderProfile(user, profile) {
   const name = profile?.name || user.displayName || "학생";
   const teacher = isTeacher(profile, user);
-  const points = Number(profile?.points ?? 0);
+  const points = Number(walletPoints ?? profile?.points ?? 0);
 
   myPoints.textContent = points;
   profileMessage.textContent = teacher
     ? "문제와 상점 상품을 등록할 수 있습니다."
-    : `${name} 님, 오늘 문제를 확인해보세요.`;
+    : `${name} 님, 오늘의 다섯 가지 도전을 시작해보세요.`;
   profileName.textContent = name;
   profileEmail.textContent = profile?.email ?? user.email;
   profileRole.textContent = teacher ? "선생님" : "학생";
@@ -306,7 +318,7 @@ function subscribeChallenge() {
 }
 
 function subscribeLeaderboard() {
-  const studentsQuery = query(ref(db, "users"), orderByChild("points"), limitToLast(30));
+  const studentsQuery = ref(db, "pointLeaderboard");
 
   const unsubscribe = onValue(studentsQuery, (snapshot) => {
     if (!snapshot.exists()) {
@@ -337,7 +349,7 @@ function renderRankItem(student, index) {
         <p class="rank-name">${escapeHtml(student.name ?? student.email ?? "학생")}</p>
         <p class="rank-meta">${escapeHtml(student.todayResult ?? "-")}</p>
       </div>
-      <span class="rank-points">${points}점</span>
+      <span class="rank-points">${points}P</span>
     </article>
   `;
 }
@@ -379,7 +391,7 @@ function renderProductItem(product) {
     <article class="product-card">
       ${image}
       <div class="product-body">
-        <p class="eyebrow">${Number(product.price ?? 0)}점</p>
+        <p class="eyebrow">${Number(product.price ?? 0)}P</p>
         <h3>${escapeHtml(product.title ?? "상품")}</h3>
         <p>${escapeHtml(product.description ?? "")}</p>
         <button type="button" data-product-id="${product.id}">자세히 보기</button>
@@ -389,15 +401,16 @@ function renderProductItem(product) {
 }
 
 function openProductDialog(product) {
+  purchaseRequestId = crypto.randomUUID();
   selectedProduct = product;
   const price = Number(product.price ?? 0);
-  const points = Number(currentProfile?.points ?? 0);
+  const points = Number(walletPoints ?? currentProfile?.points ?? 0);
   renderImage(dialogProductImage, product.imageUrl);
-  dialogProductPrice.textContent = `${price}점`;
+  dialogProductPrice.textContent = `${price}P`;
   dialogProductTitle.textContent = product.title ?? "상품";
   dialogProductDescription.textContent = product.description ?? "";
-  dialogBalance.textContent = `현재 잔액 ${points}점`;
-  dialogAfterBalance.textContent = `구매 후 잔액 ${points - price}점`;
+  dialogBalance.textContent = `현재 잔액 ${points}P`;
+  dialogAfterBalance.textContent = `구매 후 잔액 ${points - price}P`;
   buyProductButton.disabled = points < price || isTeacher(currentProfile, currentUser);
   buyProductButton.textContent = points < price ? "포인트가 부족합니다" : "제품 구입";
   setMessage(purchaseMessage, "진짜 구매하시겠습니까? 버튼을 누르면 포인트가 차감됩니다.");
@@ -415,31 +428,14 @@ async function handlePurchase() {
   buyProductButton.disabled = true;
 
   try {
-    const result = await runTransaction(ref(db, `users/${currentUser.uid}/points`), (currentPoints) => {
-      const points = Number(currentPoints ?? 0);
-      if (points < price) return;
-      return points - price;
-    });
-
-    if (!result.committed) {
-      setMessage(purchaseMessage, "포인트가 부족해서 구매하지 못했습니다.");
-      return;
-    }
-
-    const remaining = Number(result.snapshot.val() ?? 0);
-    await set(push(ref(db, "purchases")), {
-      uid: currentUser.uid,
-      productId: selectedProduct.id,
-      productTitle: selectedProduct.title,
-      price,
-      remainingPoints: remaining,
-      createdAt: serverTimestamp(),
-    });
-    setMessage(purchaseMessage, `구매되었습니다. 남은 잔액은 ${remaining}점입니다.`);
-    dialogBalance.textContent = `현재 잔액 ${remaining}점`;
-    dialogAfterBalance.textContent = `구매 후 잔액 ${remaining}점`;
+    const purchase = httpsCallable(getFunctions(firebaseApp, 'asia-southeast1'), 'brainAction');
+    const result = await purchase({action:'purchase', productId:selectedProduct.id, requestId:purchaseRequestId});
+    const remaining = result.data.points;
+    setMessage(purchaseMessage, `구매되었습니다. 남은 잔액은 ${remaining}P입니다.`);
+    dialogBalance.textContent = `현재 잔액 ${remaining}P`;
+    dialogAfterBalance.textContent = `구매 후 잔액 ${remaining}P`;
   } catch (error) {
-    setMessage(purchaseMessage, authErrorMessage(error.code));
+    setMessage(purchaseMessage, error.message || authErrorMessage(error.code));
     buyProductButton.disabled = false;
   }
 }

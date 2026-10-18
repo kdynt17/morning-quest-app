@@ -1,0 +1,14 @@
+{
+  "name": "morning-quest-functions",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0",
+    "morning-quest-app": "file:.."
+  }
+}
