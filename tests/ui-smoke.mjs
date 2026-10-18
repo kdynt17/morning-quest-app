@@ -16,10 +16,11 @@ const server=createServer(async(req,res)=>{
     res.setHeader('Content-Type','text/html; charset=utf-8');
     res.end('<!doctype html><meta charset="UTF-8"><link rel="stylesheet" href="/styles.css"><main style="max-width:720px;margin:auto;padding:16px"><div id="brain-root"></div></main><script type="module">import {mountBrain} from "/brain.js";window.dispose=mountBrain({app:{},db:{},user:{uid:"tester"},root:document.querySelector("#brain-root")});</script>');return;
   }
+  if(url.pathname==='/free-client.js'){res.end("import {httpsCallable} from '/mock.js';export const freeClient=()=>({action:httpsCallable(),settle:async()=>{},stop:()=>{}});");return;}
   if(url.pathname==='/mock.js'){
     res.end(`const listeners=[];export const getFunctions=()=>({});export const ref=(_,path)=>path;export function onValue(path,cb){const x={path,cb};listeners.push(x);refresh(x);return()=>listeners.splice(listeners.indexOf(x),1);}async function refresh(x){const v=await(await fetch('/snapshot?path='+encodeURIComponent(x.path))).json();x.cb({val:()=>v});}export const httpsCallable=()=>async data=>{const r=await fetch('/action',{method:'POST',body:JSON.stringify({...data,now:Date.now()})});const v=await r.json();if(v.error)throw Error(v.error);await Promise.all(listeners.map(refresh));return {data:v};};`);return;
   }
-  if(url.pathname==='/snapshot'){let v=url.searchParams.get('path')==='.info/serverTimeOffset'?0:state; if(typeof v==='object') for(const k of url.searchParams.get('path').split('/'))v=v?.[k];res.end(JSON.stringify(v??null));return;}
+  if(url.pathname==='/snapshot'){let v=url.searchParams.get('path')==='.info/serverTimeOffset'?0:state; if(typeof v==='object') for(const k of url.searchParams.get('path').replace(/brain\/daily\/(\d{13})/,(_,n)=>'brain/daily/'+dayKey(Number(n)-1)).split('/'))v=v?.[k];res.end(JSON.stringify(v??null));return;}
   if(url.pathname==='/action'){
     let body='';for await(const c of req)body+=c;const input=JSON.parse(body);
     try{state=applyAction(structuredClone(state),'tester',input.action,input,input.now);const key=input.mode==='daily'?(input.day||dayKey(input.now)):'practice';res.end(JSON.stringify({session:state.brain.sessions.tester[key],serverNow:input.now}));}catch(e){res.end(JSON.stringify({error:e.message}));}return;

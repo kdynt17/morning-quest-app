@@ -24,7 +24,7 @@ import {
 
 import { firebaseConfig } from "./firebase-config.js";
 import { mountBrain } from "./brain.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
+import { freeClient } from "./free-client.js";
 
 const ADMIN_LOGIN = "admin@admin";
 const ADMIN_AUTH_EMAIL = "admin@admin.com";
@@ -81,6 +81,7 @@ let auth;
 let db;
 let currentUser = null;
 let currentProfile = null;
+let walletPoints = null;
 let currentChallengeId = null;
 let selectedProduct = null;
 let unsubscribers = [];
@@ -126,6 +127,7 @@ if (setupRequired) {
     disposeBrain?.();
     currentUser = user;
     currentProfile = null;
+    walletPoints = null;
     selectedProduct = null;
 
     if (!user) {
@@ -223,6 +225,7 @@ async function ensureProfile(user) {
 }
 
 function subscribeProfile() {
+  unsubscribers.push(onValue(ref(db, `wallets/${currentUser.uid}/points`), s => {walletPoints = s.val(); if(currentProfile) renderProfile(currentUser,currentProfile);}));
   const unsubscribe = onValue(ref(db, `users/${currentUser.uid}`), (snapshot) => {
     if (!snapshot.exists()) return;
     currentProfile = snapshot.val();
@@ -234,7 +237,7 @@ function subscribeProfile() {
 function renderProfile(user, profile) {
   const name = profile?.name || user.displayName || "학생";
   const teacher = isTeacher(profile, user);
-  const points = Number(profile?.points ?? 0);
+  const points = Number(walletPoints ?? profile?.points ?? 0);
 
   myPoints.textContent = points;
   profileMessage.textContent = teacher
@@ -401,7 +404,7 @@ function openProductDialog(product) {
   purchaseRequestId = crypto.randomUUID();
   selectedProduct = product;
   const price = Number(product.price ?? 0);
-  const points = Number(currentProfile?.points ?? 0);
+  const points = Number(walletPoints ?? currentProfile?.points ?? 0);
   renderImage(dialogProductImage, product.imageUrl);
   dialogProductPrice.textContent = `${price}P`;
   dialogProductTitle.textContent = product.title ?? "상품";

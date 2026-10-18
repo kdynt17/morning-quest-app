@@ -9,7 +9,7 @@
       ],
       "$uid": {
         ".read": "auth != null && (auth.uid == $uid || (auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')))",
-        ".write": "(auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')) || (auth != null && auth.uid == $uid && !data.exists() && newData.child('role').val() == 'student' && newData.child('points').val() == 0 && newData.child('authEmail').val() == auth.token.email && !newData.child('brainRewards').exists() && !newData.child('practiceRewards').exists() && !newData.child('purchaseReceipts').exists())",
+        ".write": "(auth != null && (auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')) || (auth != null && auth.uid == $uid && !data.exists() && newData.child('role').val() == 'student' && newData.child('points').val() == 0 && newData.child('authEmail').val() == auth.token.email && !newData.child('brainRewards').exists() && !newData.child('practiceRewards').exists() && !newData.child('purchaseReceipts').exists() && !newData.child('receipts').exists() && !newData.child('lastClaim').exists())",
         ".validate": "newData.hasChildren(['email', 'authEmail', 'role', 'points', 'name'])",
         "name": {
           ".write": "auth != null && auth.uid == $uid && data.parent().exists()",
@@ -47,8 +47,9 @@
     },
     "purchases": {
       "$purchaseId": {
-        ".read": "auth != null && (data.child('uid').val() == auth.uid || auth.token.email == 'admin@admin.com' || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
-        ".write": false
+        ".read": "auth != null && ($purchaseId.beginsWith(auth.uid + '_') || data.child('uid').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() == auth.uid && $purchaseId == auth.uid + '_' + root.child('wallets').child(auth.uid).child('lastPurchase/key').val()",
+        ".validate": "newData.child('productId').val() == root.child('wallets').child(auth.uid).child('lastPurchase/productId').val() && newData.child('price').val() == root.child('wallets').child(auth.uid).child('lastPurchase/price').val()"
       }
     },
     "challengeWinners": {
@@ -77,26 +78,58 @@
       ".write": false,
       "daily": {
         "$day": {
-          ".read": "auth != null"
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid && root.child('users').child($uid).child('role').val() == 'student' && !data.exists() && newData.exists() && root.child('brain/sessions').child($uid).child($day).child('done').val() == true",
+            ".validate": "newData.hasChildren(['name','score']) && newData.child('name').val() == root.child('users').child($uid).child('name').val() && newData.child('score').val() == root.child('brain/sessions').child($uid).child($day).child('total').val()"
+          }
         }
       },
       "best": {
-        ".read": "auth != null"
+        ".read": "auth != null",
+        "$game": {
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid && root.child('users').child($uid).child('role').val() == 'student' && newData.exists()",
+            ".validate": "newData.hasChildren(['name','score']) && newData.child('name').val() == root.child('users').child($uid).child('name').val() && newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() <= 60000 && (!data.exists() || newData.child('score').val() >= data.child('score').val())"
+          }
+        }
       },
       "sessions": {
         "$uid": {
-          ".read": "auth != null && auth.uid == $uid"
+          ".read": "auth != null && auth.uid == $uid",
+          "$key": {
+            ".write": "auth != null && auth.uid == $uid && root.child('users').child($uid).child('role').val() == 'student' && newData.exists()",
+            ".validate": "newData.hasChildren(['id','mode','day','endAt','games','seed','category','stage','startedAt','total','done']) && newData.child('stage').isNumber() && newData.child('total').isNumber() && newData.child('total').val() >= 0 && newData.child('category').val() >= 0 && newData.child('category').val() <= 4 && newData.child('startedAt').isNumber() && newData.child('endAt').isNumber() && ((newData.child('mode').val() == 'daily' && $key == '' + newData.child('endAt').val() && newData.child('stage').val() <= 5 && newData.child('done').val() == (newData.child('stage').val() == 5)) || (newData.child('mode').val() == 'practice' && $key == 'practice' && newData.child('stage').val() <= 1 && newData.child('done').val() == (newData.child('stage').val() == 1) && root.child('brain/sessions').child($uid).child('' + newData.child('endAt').val()).child('done').val() == true)) && ((!data.exists() || ($key == 'practice' && (data.child('done').val() == true || data.child('endAt').val() <= now))) && newData.child('stage').val() == 0 && newData.child('total').val() == 0 && newData.child('endAt').val() > now && newData.child('endAt').val() <= now + 86400000 && (newData.child('endAt').val() - 75600000) % 86400000 == 0 && newData.child('startedAt').val() >= now - 15000 && newData.child('startedAt').val() <= now + 6000 || data.exists() && data.child('done').val() == false && data.child('endAt').val() > now && now >= data.child('startedAt').val() + 60000 && newData.child('id').val() == data.child('id').val() && newData.child('mode').val() == data.child('mode').val() && newData.child('seed').val() == data.child('seed').val() && newData.child('endAt').val() == data.child('endAt').val() && newData.child('category').val() == data.child('category').val() && newData.child('stage').val() == data.child('stage').val() + 1 && newData.child('total').val() >= data.child('total').val() && newData.child('total').val() <= data.child('total').val() + 60000 && newData.child('startedAt').val() >= now - 15000 && newData.child('startedAt').val() <= now + 6000)"
+          }
         }
       },
       "history": {
         "$uid": {
-          ".read": "auth != null && auth.uid == $uid"
+          ".read": "auth != null && auth.uid == $uid",
+          "$category": {
+            ".write": "auth != null && auth.uid == $uid && root.child('users').child($uid).child('role').val() == 'student' && newData.exists()",
+            ".validate": "newData.hasChildren()",
+            "$i": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 60000"
+            }
+          }
         }
       }
     },
     "pointLeaderboard": {
       ".read": "auth != null",
-      ".write": false
+      ".write": false,
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid && root.child('users').child($uid).child('role').val() == 'student' && newData.exists()",
+        ".validate": "newData.hasChildren(['name','points']) && newData.child('name').val() == root.child('users').child($uid).child('name').val() && newData.child('points').val() == root.child('wallets').child($uid).child('points').val()"
+      }
+    },
+    "wallets": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'teacher')",
+        ".write": "auth != null && auth.uid == $uid && root.child('users').child($uid).child('role').val() == 'student' && newData.exists()",
+        ".validate": "newData.hasChildren(['points','dailyThrough','practiceEnd','practiceMask']) && newData.child('points').isNumber() && newData.child('points').val() >= 0 && ((!data.exists() && newData.child('points').val() == root.child('users').child($uid).child('points').val() && newData.child('dailyThrough').val() == 0 && newData.child('practiceEnd').val() == 0 && newData.child('practiceMask').val() == 0 && !newData.child('lastPurchase').exists()) || (data.exists() && newData.child('points').val() == data.child('points').val() + newData.child('claim').child('amount').val() && (((newData.child('claim').child('kind').val() == 'daily' && newData.child('claim').child('amount').val() == 50 && newData.child('claim').child('dayEnd').val() > data.child('dailyThrough').val() && root.child('brain/sessions').child($uid).child('' + newData.child('claim').child('dayEnd').val()).child('done').val() == true && root.child('brain/sessions').child($uid).child('' + newData.child('claim').child('dayEnd').val()).child('endAt').val() <= now && newData.child('dailyThrough').val() == newData.child('claim').child('dayEnd').val() && newData.child('practiceEnd').val() == data.child('practiceEnd').val() && newData.child('practiceMask').val() == data.child('practiceMask').val()) && (newData.child('lastPurchase/key').val() == data.child('lastPurchase/key').val() && newData.child('lastPurchase/productId').val() == data.child('lastPurchase/productId').val() && newData.child('lastPurchase/price').val() == data.child('lastPurchase/price').val())) || ((newData.child('claim').child('kind').val() == 'practice' && newData.child('claim').child('amount').val() == 10 && ((newData.child('claim').child('category').val() == 0 && newData.child('claim').child('bit').val() == 1) || (newData.child('claim').child('category').val() == 1 && newData.child('claim').child('bit').val() == 2) || (newData.child('claim').child('category').val() == 2 && newData.child('claim').child('bit').val() == 4) || (newData.child('claim').child('category').val() == 3 && newData.child('claim').child('bit').val() == 8) || (newData.child('claim').child('category').val() == 4 && newData.child('claim').child('bit').val() == 16)) && root.child('brain/sessions').child($uid).child('practice').child('done').val() == true && root.child('brain/sessions').child($uid).child('practice').child('endAt').val() == newData.child('claim').child('dayEnd').val() && root.child('brain/sessions').child($uid).child('practice').child('category').val() == newData.child('claim').child('category').val() && newData.child('dailyThrough').val() == data.child('dailyThrough').val() && newData.child('practiceEnd').val() == newData.child('claim').child('dayEnd').val() && ((newData.child('claim').child('dayEnd').val() > data.child('practiceEnd').val() && newData.child('practiceMask').val() == newData.child('claim').child('bit').val()) || (newData.child('claim').child('dayEnd').val() == data.child('practiceEnd').val() && data.child('practiceMask').val() % (newData.child('claim').child('bit').val() * 2) < newData.child('claim').child('bit').val() && newData.child('practiceMask').val() == data.child('practiceMask').val() + newData.child('claim').child('bit').val()))) && (newData.child('lastPurchase/key').val() == data.child('lastPurchase/key').val() && newData.child('lastPurchase/productId').val() == data.child('lastPurchase/productId').val() && newData.child('lastPurchase/price').val() == data.child('lastPurchase/price').val())) || (newData.child('claim').child('kind').val() == 'purchase' && root.child('storeProducts').child(newData.child('claim').child('productId').val()).child('price').isNumber() && root.child('storeProducts').child(newData.child('claim').child('productId').val()).child('price').val() > 0 && root.child('storeProducts').child(newData.child('claim').child('productId').val()).child('visible').val() != false && newData.child('claim').child('amount').val() == 0 - root.child('storeProducts').child(newData.child('claim').child('productId').val()).child('price').val() && newData.child('dailyThrough').val() == data.child('dailyThrough').val() && newData.child('practiceEnd').val() == data.child('practiceEnd').val() && newData.child('practiceMask').val() == data.child('practiceMask').val() && newData.child('lastPurchase/key').val() == newData.child('claim').child('key').val() && newData.child('lastPurchase/productId').val() == newData.child('claim').child('productId').val() && newData.child('lastPurchase/price').val() == 0 - newData.child('claim').child('amount').val()))))"
+      }
     }
   }
 }

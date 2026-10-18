@@ -1,6 +1,6 @@
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js';
+import { freeClient } from './free-client.js';
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
-import { GAMES, CATEGORIES, ROUND_MS, dayKey, closesAt, lineup, rankings, bonus, question, isCorrect, scoreRound } from './functions/domain.mjs';
+import { GAMES, CATEGORIES, ROUND_MS, dayKey, closesAt, lineup, rankings, question, isCorrect, scoreRound } from './functions/domain.mjs';
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const grid=values=>`<span class="mini-grid">${values.map(v=>`<i class="${v?'filled':''}"></i>`).join('')}</span>`;
@@ -15,21 +15,21 @@ const towers=heights=>{
   return `<svg viewBox="35 -40 190 210" class="tower-art" role="img" aria-label="블록 탑 입체 그림"><g stroke="#244b89" stroke-width="1">${cubes}</g><text x="65" y="140" font-size="13">↗ 앞</text><text x="160" y="140" font-size="13">오른쪽 ↖</text></svg>`;
 };
 export function mountBrain({app,db,user,root}) {
-  const call=httpsCallable(getFunctions(app,'asia-southeast1'),'brainAction');
+  const transport=freeClient(db,user); const call=transport.action;
   let day=dayKey(),daily={},best={},profile={},history={},session=null,events=[],selected=[],index=0,q=null,questionAt=0,offset=0,busy=false,disposed=false;
   let subscriptions=[],daySub,clock,gameClock,lastPaint='',errorText='',lastResult=null,showAll=false;
   const now=()=>Date.now()+offset;
   const storageKey=()=>`brain:${user.uid}:${session.id}:${session.stage}`;
-  const error=e=>{errorText=e?.message?.includes('fetch')||e?.code==='functions/not-found'?'게임 서버가 아직 연결되지 않았습니다. 선생님에게 알려주세요.':e.message||'연결하지 못했습니다. 다시 시도해주세요.';};
+  const error=e=>{errorText=e?.message?.includes('fetch')?'인터넷 연결을 확인한 뒤 다시 시도해주세요.':e.message||'연결하지 못했습니다. 다시 시도해주세요.';};
   function board(records,full=false) {
     const rows=rankings(records),mine=rows.find(x=>x.uid===user.uid),above=mine?rows.filter(x=>x.score>mine.score).at(-1):null;
     return `${rows.length?rows.slice(0,full?rows.length:3).map(r=>`<div class="brain-rank"><b>${r.rank}위</b><span>${esc(r.name||'학생')}${r.uid===user.uid?' (나)':''}</span><strong>${r.score.toLocaleString()}점</strong></div>`).join(''):'<p class="helper-text">아직 기록이 없습니다. 첫 기록을 남겨보세요.</p>'}<p class="my-rank">${mine?`내 순위 ${mine.rank}위 / ${rows.length}명 · ${mine.score.toLocaleString()}점${above?` · 다음 순위까지 +${above.score-mine.score+1}점`:''}`:'내 기록: 아직 참여 전'}</p>`;
   }
   function dashboard() {
     if(disposed||session&&!session.done) return;
-    const mine=daily[user.uid],rank=rankings(daily).find(x=>x.uid===user.uid)?.rank,earned=Object.keys(profile.practiceRewards?.[day]||{}).length*10;
-    const reward=Object.entries(profile.brainRewards||{}).sort(([a],[b])=>b.localeCompare(a))[0];
-    root.innerHTML=`<article class="brain-hero"><p class="eyebrow">DAILY BRAIN CHALLENGE · ${day}</p><h2>아침 5분, 다섯 가지 도전</h2><p>직감 → 기억 → 분석 → 계산 → 지각<br>하루 한 번 · 각 60초 · 매일 오전 6시 갱신</p><div class="daily-lineup">${lineup(day).map(id=>`<span>${GAMES.find(g=>g.id===id).name}</span>`).join('')}</div><button id="brain-start" class="primary-button" ${mine?'disabled':''}>${mine?'오늘 도전 완료':'오늘의 도전 시작 / 이어하기'}</button><p class="helper-text">중간에 나가도 새로 시작하지 않으며, 타이머는 계속 흐릅니다. 오답은 감점 없이 콤보 초기화·0.4초 대기입니다.</p>${mine?`<div class="brain-estimate"><strong>${mine.score.toLocaleString()}점 · 현재 ${rank}위</strong><p>참여 50P + 순위 보너스 ${bonus(rank)}P = 예상 ${50+bonus(rank)}P</p><small>${new Date(closesAt(day)).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} 확정·지급<br>다른 학생의 참여에 따라 순위와 예상 포인트가 바뀝니다.</small></div>`:''}</article>${reward?`<article class="brain-notice">${reward[0]} 정산 완료 · 최종 ${reward[1].rank}위 · <b>+${reward[1].points}P</b></article>`:''}${lastResult?`<article class="brain-notice">${esc(lastResult)}</article>`:''}<p id="brain-error" role="status">${esc(errorText)}</p><article class="question-card"><h3>오늘의 챌린지 순위</h3>${board(daily,showAll)}<button id="brain-ranks" class="secondary-button">${showAll?'TOP 3만 보기':'전체 순위 보기'}</button></article><section><h2>자유 연습 <small>오늘 ${earned} / 50P</small></h2><p class="helper-text">챌린지 완료 후 각 영역 첫 연습 완료에 10P. 이후에도 기록에 도전할 수 있어요.</p>${CATEGORIES.map((cat,i)=>`<article class="question-card"><h3>${cat} <small>${profile.practiceRewards?.[day]?.[i]?'10 / 10P ✓':'0 / 10P'}</small></h3><div class="practice-games">${GAMES.filter(g=>g.category===i).map(g=>`<details><summary>${g.name}</summary><p>${g.help}</p>${board(best[g.id]||{},showAll)}<button data-practice="${g.id}" class="primary-button" ${mine?'':'disabled'}>60초 연습 시작</button></details>`).join('')}</div></article>`).join('')}</section><article class="question-card"><h3>나의 Brain Profile</h3><p class="helper-text">영역별 최근 7회 게임 점수 평균입니다. IQ나 의학적 인지능력 수치가 아닙니다.</p>${CATEGORIES.map((cat,i)=>{const a=history[i]||[];return `<div class="brain-rank"><span>${cat}</span><strong>${a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length).toLocaleString()+'점':'기록 없음'}</strong><small>${a.length}/7회</small></div>`;}).join('')}</article>`;
+    const mine=daily[user.uid],rank=rankings(daily).find(x=>x.uid===user.uid)?.rank,earned=(profile.practiceEnd===closesAt(day)?[1,2,4,8,16].filter(bit=>profile.practiceMask&bit).length*10:0);
+    const reward=profile.dailyThrough?['',50]:null;
+    root.innerHTML=`<article class="brain-hero"><p class="eyebrow">DAILY BRAIN CHALLENGE · ${day}</p><h2>아침 5분, 다섯 가지 도전</h2><p>직감 → 기억 → 분석 → 계산 → 지각<br>하루 한 번 · 각 60초 · 매일 오전 6시 갱신</p><div class="daily-lineup">${lineup(day).map(id=>`<span>${GAMES.find(g=>g.id===id).name}</span>`).join('')}</div><button id="brain-start" class="primary-button" ${mine?'disabled':''}>${mine?'오늘 도전 완료':'오늘의 도전 시작 / 이어하기'}</button><p class="helper-text">중간에 나가도 새로 시작하지 않으며, 타이머는 계속 흐릅니다. 오답은 감점 없이 콤보 초기화·0.4초 대기입니다.</p>${mine?`<div class="brain-estimate"><strong>${mine.score.toLocaleString()}점 · 현재 ${rank}위</strong><p>참여 보상 50P · 순위는 기록 비교용입니다</p><small>${new Date(closesAt(day)).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} 이후 접속하면 지급됩니다.<br>무료 학급 버전에서는 순위 보너스가 없습니다.</small></div>`:''}</article>${reward?`<article class="brain-notice">챌린지 참여 보상 지급 완료 · <b>+${reward[1]}P</b></article>`:''}${lastResult?`<article class="brain-notice">${esc(lastResult)}</article>`:''}<p id="brain-error" role="status">${esc(errorText)}</p><article class="question-card"><h3>오늘의 챌린지 순위</h3>${board(daily,showAll)}<button id="brain-ranks" class="secondary-button">${showAll?'TOP 3만 보기':'전체 순위 보기'}</button></article><section><h2>자유 연습 <small>오늘 ${earned} / 50P</small></h2><p class="helper-text">챌린지 완료 후 각 영역 첫 연습 완료에 10P. 이후에도 기록에 도전할 수 있어요.</p>${CATEGORIES.map((cat,i)=>`<article class="question-card"><h3>${cat} <small>${(profile.practiceEnd===closesAt(day)&&(profile.practiceMask&(2**i)))?'10 / 10P ✓':'0 / 10P'}</small></h3><div class="practice-games">${GAMES.filter(g=>g.category===i).map(g=>`<details><summary>${g.name}</summary><p>${g.help}</p>${board(best[g.id]||{},showAll)}<button data-practice="${g.id}" class="primary-button" ${mine?'':'disabled'}>60초 연습 시작</button></details>`).join('')}</div></article>`).join('')}</section><article class="question-card"><h3>나의 Brain Profile</h3><p class="helper-text">영역별 최근 7회 게임 점수 평균입니다. IQ나 의학적 인지능력 수치가 아닙니다.</p>${CATEGORIES.map((cat,i)=>{const a=history[i]||[];return `<div class="brain-rank"><span>${cat}</span><strong>${a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length).toLocaleString()+'점':'기록 없음'}</strong><small>${a.length}/7회</small></div>`;}).join('')}</article>`;
     root.querySelector('#brain-start').onclick=()=>start('daily');
     root.querySelector('#brain-ranks').onclick=()=>{showAll=!showAll;dashboard();};
     root.querySelectorAll('[data-practice]').forEach(b=>b.onclick=()=>start('practice',b.dataset.practice));
@@ -41,7 +41,7 @@ export function mountBrain({app,db,user,root}) {
   }
   function loadStage() {
     clearInterval(gameClock);lastPaint='';
-    if(session.done){lastResult=`${session.mode==='daily'?'챌린지':'연습'} 완료 · ${session.results.reduce((a,b)=>a+b.score,0)}점${session.mode==='practice'?' · 영역별 오늘 첫 연습 보상은 10P입니다.':' · 포인트는 다음 오전 6시에 지급됩니다.'}`;dashboard();return;}
+    if(session.done){lastResult=`${session.mode==='daily'?'챌린지':'연습'} 완료 · ${session.results.reduce((a,b)=>a+b.score,0)}점${session.mode==='practice'?' · 영역별 오늘 첫 연습 보상은 10P입니다.':' · 포인트는 다음 오전 6시 이후 접속하면 지급됩니다.'}`;dashboard();return;}
     events=[];questionAt=Math.max(now(),session.startedAt);
     try {const cached=JSON.parse(localStorage.getItem(storageKey())||'null');if(cached){events=cached.events;questionAt=cached.questionAt;scoreRound(session.games[session.stage],`${session.seed}:${session.stage}`,events);}}catch{events=[];}
     index=events.length;selected=[];q=question(session.games[session.stage],`${session.seed}:${session.stage}`,index);
@@ -104,13 +104,13 @@ export function mountBrain({app,db,user,root}) {
   }
   function watchDay(){
     daySub?.();daily={};
-    daySub=onValue(ref(db,`brain/daily/${day}`),s=>{daily=s.val()||{};dashboard();},e=>{error(e);dashboard();});
+    daySub=onValue(ref(db,`brain/daily/${closesAt(day)}`),s=>{daily=s.val()||{};dashboard();},e=>{error(e);dashboard();});
   }
   subscriptions.push(onValue(ref(db,'.info/serverTimeOffset'),s=>{offset=s.val()||0;}));
-  subscriptions.push(onValue(ref(db,`users/${user.uid}`),s=>{profile=s.val()||{};dashboard();}));
+  subscriptions.push(onValue(ref(db,`wallets/${user.uid}`),s=>{profile=s.val()||{};dashboard();}));
   subscriptions.push(onValue(ref(db,'brain/best'),s=>{best=s.val()||{};dashboard();},()=>{}));
   subscriptions.push(onValue(ref(db,`brain/history/${user.uid}`),s=>{history=s.val()||{};dashboard();},()=>{}));
-  watchDay();dashboard();
-  clock=setInterval(()=>{const next=dayKey(now());if(next!==day){day=next;session=null;clearInterval(gameClock);errorText='오전 6시, 새로운 도전이 열렸습니다.';watchDay();dashboard();}},1000);
-  return ()=>{disposed=true;subscriptions.forEach(f=>f());daySub?.();clearInterval(clock);clearInterval(gameClock);root.innerHTML='';};
+  watchDay();dashboard(); transport.settle().catch(e=>{error(e);dashboard();});
+  clock=setInterval(()=>{const next=dayKey(now());if(next!==day){day=next;session=null;clearInterval(gameClock);errorText='오전 6시, 새로운 도전이 열렸습니다.';watchDay();dashboard();transport.settle().catch(e=>{error(e);dashboard();});}},1000);
+  return ()=>{disposed=true;transport.stop();subscriptions.forEach(f=>f());daySub?.();clearInterval(clock);clearInterval(gameClock);root.innerHTML='';};
 }

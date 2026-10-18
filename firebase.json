@@ -1,5 +1,4 @@
 {
-  "functions": [{ "source": "functions", "codebase": "brain", "runtime": "nodejs22" }],
   "database": {
     "rules": "database.rules.json"
   }

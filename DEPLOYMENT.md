@@ -1,44 +1,34 @@
-# 두뇌 챌린지 배포
+# 무료 학급 버전 배포
 
-## 변경 내용
+대상은 27명 학급, Firebase 프로젝트 `morning-quest`, 정적 사이트는 GitHub Pages입니다. Spark 요금제를 유지합니다. `firebase.json`에는 Realtime Database 규칙만 포함하며 Functions·Scheduler 배포는 하지 않습니다.
 
-13개 게임, 한국 시각 매일 06:00 기준 5종 연속 도전(각 60초), 영역 사이 5초 결과 화면, 재접속 이어하기, 오답 무감점과 0.4초 입력 대기, 챌린지 순위/예상 보상, 게임별 최고기록 순위, 최근 7회 영역별 평균을 추가했습니다.
+## 보상과 저장 구조
 
-챌린지 완료 보상은 다음 날 06:00에 50P + 순위 보너스입니다. 1/2/3위 50/40/30P, 4–5위 25P, 6–10위 15P, 11–15위 10P입니다. 동점자는 공동 순위(1, 1, 3)와 같은 보상을 받습니다. 연습은 챌린지 완료 후 열리고 영역별 첫 완료만 10P, 하루 최대 50P입니다. 순위는 기본 TOP 3, 전체 보기로 모두 표시합니다.
+매일 한국 시각 06:00에 도전 날짜가 바뀝니다. 5영역을 완료하면 마감 이후 본인이 접속할 때 고정 50P가 지급됩니다. 접속하지 않는 동안 예약 서버가 실행되지는 않습니다. 연습은 영역별 하루 10P, 최대 50P입니다. 순위 보너스는 없습니다.
 
-기존 회원/잔액/상품/창의력 문제를 유지합니다. 포인트 지급과 구매는 서버 트랜잭션으로 이전했으므로 **Firebase 서버와 규칙을 먼저 배포한 뒤 프런트엔드 변경을 main에 병합해야 합니다.** GitHub Pages만 갱신하면 게임 시작과 구매가 작동하지 않습니다.
+기존 회원·상품·문제는 유지합니다. 학생 최초 접속 시 기존 `users/uid/points`를 `wallets/uid`로 한 번 옮겨 새 잔액 기준으로 사용합니다. 이후 기존 points 필드는 초기 잔액이며 새 지갑이 현재 잔액입니다. 날짜와 영역 마스크로 중복 지급을 차단하고 상품의 실제 가격만 차감합니다. 구매 영수증 저장이 중단되면 다음 접속/구매 시 재시도합니다.
 
-## 배포 순서
+게임 점수는 브라우저에서 계산합니다. DB 규칙은 회차 진행 시간·완료·점수 범위·보상 조건을 검사하지만 정답을 다시 채점하지는 않습니다. 개발자 도구를 활용한 점수 조작까지 방어하는 시스템은 아닙니다. 학급 내부 운영용입니다.
 
-프로젝트: `morning-quest`, 함수 리전: `asia-southeast1`.
+## 배포
 
-1. 프로젝트 관리 권한이 있는 Google 계정으로 `npx firebase-tools login`을 실행합니다.
-2. Firebase 콘솔에서 Functions와 Cloud Scheduler 사용이 가능한 요금제/설정인지 확인합니다. 유료 요금제 전환이나 결제 등록은 별도 승인 후 진행합니다.
-3. `npm ci --prefix functions`
-4. `npx firebase-tools deploy --only functions:brain --project morning-quest`
-5. `npx firebase-tools deploy --only database --project morning-quest`
-6. PR을 main에 병합해 GitHub Pages를 갱신합니다. 4–6단계 동안에는 이용자가 접속하지 않는 시간을 권장합니다.
-7. 기존 학생들의 포인트 순위는 학생 데이터 변경 시 동기화됩니다. 즉시 기존 전체 순위가 필요하면 Firebase 콘솔의 Functions에서 `settleBrainDay`에 연결된 Scheduler 작업을 한 번 실행합니다. 마감된 날짜만 정산하며 중복 지급하지 않습니다.
-8. 학생 계정으로 도전 5종 완료, 연습 완료, 상점 구매를 확인합니다. Scheduler 시간대 `Asia/Seoul`, 일정 `0 6 * * *`를 확인합니다.
+1. Firebase CLI로 프로젝트 관리 계정에 로그인합니다.
+2. `npx firebase-tools deploy --only database --project morning-quest`
+3. PR을 main에 병합합니다. GitHub Pages는 main의 루트 폴더를 게시합니다.
+4. 학생 계정으로 로그인하여 도전·연습·상점을 확인합니다.
+
+규칙과 프런트엔드를 연속 배포하세요. 새 규칙 적용부터 Pages 갱신까지 기존 클라이언트의 구매가 잠시 실패할 수 있습니다. 요금제 변경이나 결제 등록은 필요하지 않습니다. 무료 할당량에 도달하면 이용이 제한될 수 있습니다.
 
 ## 검증
 
-- `npm test`: 날짜 경계, 생성 문제 정답, 채점, 공동 순위, 중복 완료·정산, 연습 상한, 마감, 구매 트랜잭션.
-- `npm run check`: 프런트엔드/서버 문법 검사.
-- `node tests/ui-smoke.mjs`: Playwright가 설치된 환경에서 실행. Chrome 사용, Firebase 통신을 격리된 테스트 서버로 대체합니다. 실제 Firebase 보안 규칙/인증/스케줄러 통합 테스트와는 별개입니다.
-- 테스트 결과물은 `test-results/`에 생성되며 커밋하지 않습니다.
-- 보안 규칙 검증: `npx --package firebase-tools@14.0.0 firebase emulators:exec --only database --project demo-morning-quest "node tests/rules-emulator.mjs"` (Java 17 호환 CLI). 학생의 잔액·역할·보상·게임 기록·구매 위조, 다른 학생 개인정보 및 비로그인 접근 차단을 실제 규칙으로 검증했습니다. 최신 CLI를 사용할 때는 Java 21 이상이 필요합니다.
+- `npm test`: 게임 생성·채점·날짜 경계 및 기존 서비스 로직 10개 테스트. 기존 서비스 테스트에는 사용하지 않는 서버 정산 방식도 포함됩니다.
+- `npm run check`: JavaScript 문법 검사.
+- `node tests/ui-smoke.mjs`: Playwright/Chrome으로 5종 도전·13종 연습·모바일 레이아웃 검사. Firebase 통신은 모의 서버로 대체합니다.
+- `npx --package firebase-tools@14.0.0 firebase emulators:exec --only database --project demo-morning-quest "node tests/free-rules.mjs"`: 실제 규칙의 부정 지급·중복 지급·가격 조작 차단 검사.
+- 같은 에뮬레이터 명령에서 `node tests/free-client-emulator.mjs`: 실제 무료 클라이언트로 잔액 이전·5종 도전·13종 연습·50P 상한·정산·구매 재시도 검증.
 
-이번 변경에서 단위 테스트 10개, 모바일 브라우저 5종 연속 완료 및 13개 연습 게임, 데이터베이스 규칙 에뮬레이터 검증이 통과했습니다. 실제 Firebase 서버 배포와 운영 계정 테스트는 로그인 후 수행해야 합니다.
+에뮬레이터 테스트는 `npm ci --prefix functions`로 테스트용 Firebase Admin 의존성을 설치해야 합니다. CLI 14는 Java 17 환경용입니다. 테스트는 운영 DB에 실행하지 않습니다.
 
-## 운영 범위와 한계
+`functions/domain.mjs`는 브라우저에서도 사용하는 공통 문제 생성/채점 코드입니다. `functions/index.js`와 `functions/service.mjs`는 이전 서버 방식의 미사용 코드로 현재 앱에서 호출하거나 배포하지 않습니다. `tests/rules-emulator.mjs` 역시 이전 방식용이며 무료 버전 검증에는 위 free 테스트 두 개를 사용합니다.
 
-점수는 정답 100점 + 연속 정답 보너스(최대 50점)입니다. 같은 날짜에는 모든 학생이 같은 게임과 문제 순서를 사용합니다. 영역 평균은 게임 내 수행 기록이며 IQ가 아닙니다. 시점추측은 3×3 블록 탑의 투영 문제입니다.
-
-재접속 시 서버의 기존 시작 시각을 사용하므로 타이머는 초기화되지 않습니다. 같은 브라우저의 입력 기록은 로컬 저장소에서 복원됩니다. 브라우저 저장소를 지우거나 다른 기기로 옮기면 아직 제출하지 않은 영역의 입력 기록은 복원되지 않습니다. 이미 제출한 영역은 서버에 남습니다.
-
-서버가 문제를 재생성하고 답·시간 범위·완료 시각을 검증하지만, 브라우저에 문제 생성기가 있으므로 개발자 도구를 사용하는 적극적인 자동 풀이를 막는 보안 시스템은 아닙니다. 학급 내부 운영을 전제로 합니다.
-
-잔액과 영수증을 원자적으로 기록하기 위해 현재 소규모 학급 DB 전체 트랜잭션을 사용합니다. 학교 전체 규모로 확장할 때는 지갑/정산 저장 구조를 분리해야 합니다. 실패한 정산은 재시도하며 다음 실행 때 누락된 이전 날짜도 처리합니다. 실제 Firebase 배포와 운영 계정 검증은 별도로 필요합니다.
-
-공식 안내: https://firebase.google.com/docs/functions/schedule-functions 및 https://firebase.google.com/docs/functions/callable
+같은 브라우저에서는 진행 중 입력을 복원하지만 브라우저 저장소를 지우거나 기기를 바꾸면 아직 제출하지 않은 입력은 복원되지 않습니다. 제출한 회차는 DB에 남습니다. 최근 평균은 게임 기록이며 IQ 수치가 아닙니다.
