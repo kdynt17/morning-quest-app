@@ -1,0 +1,28 @@
+name: Sync image assets
+
+# assets/sources.txt 가 바뀔 때만 실행: 그림을 내려받아 저장소에 커밋한다.
+on:
+  push:
+    paths: [assets/sources.txt, tools/sync-assets.sh]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ImageMagick
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick webp
+      - name: Download and convert
+        run: tools/sync-assets.sh
+      - name: Commit assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets
+          git diff --cached --quiet && exit 0
+          git commit -m "그림 파일 저장 (sync-assets)"
+          git push

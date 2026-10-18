@@ -1,0 +1,25 @@
+# 한 번만 만든 Higgsfield 그림 원본 주소. 이 파일이 바뀌면 sync-assets 워크플로가 내려받아 assets/ 에 저장한다.
+# 이름 크기(px) 원본URL
+mascot-hello 320 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_150547_615b2e08-a484-4c13-b356-752df01a3974.png
+mascot-professor 320 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_150959_6c49048c-c58c-4fa9-a730-19dac4542aaa.png
+mascot-cheer 320 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_150958_d4cad6d7-1c4f-43a5-98e6-d8fea6193ed2.png
+mascot-think 320 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_150958_98a1d85b-5290-482f-a970-992f17606488.png
+mascot-oops 320 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151032_4f4e9597-e3f3-464f-a7f5-a55cce2d0ebe.png
+mascot-medal 320 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151032_cd7f07c5-839c-40fe-b9a1-4ed1d5ddde4b.png
+cat-intuition 128 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151102_4b8954f7-d4c8-4ed5-8f54-3c7f936361ad.png
+cat-memory 128 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151101_0e89b678-b9cf-4631-a495-032047687e8b.png
+cat-analysis 128 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151102_1096eb40-ad45-41a0-be44-bcf520fd5ce8.png
+cat-compute 128 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151128_8c015293-28a6-45a6-8c94-7cdf513ffdfa.png
+cat-perception 128 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151128_78b54b68-d9c3-4321-88c1-92b471f055d1.png
+animal-cat 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151154_99e5a26e-c485-4429-9dfd-96fd26acbbea.png
+animal-dog 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151154_629e7554-7ae3-4f03-966f-fd96c37488eb.png
+animal-panda 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151154_e8401584-7f12-4ec9-90c0-b32e511be0a5.png
+animal-frog 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151203_6b9eb52c-c692-4b49-a52b-3d455272b039.png
+animal-rabbit 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151231_c3381aab-2f20-44b4-b5b7-5d7acb356cde.png
+animal-koala 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151231_51dfcfdd-8ae6-40aa-b286-333d8a9ce273.png
+animal-chick 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151232_6aa241a0-9ee5-4c53-a130-f17250437a82.png
+animal-pig 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151319_cd8c26aa-70b3-4ff8-ab5a-fb438f1405c4.png
+animal-penguin 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151319_7edffd7d-a510-4cd7-81c8-142a159a503a.png
+animal-mouse 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151319_f9f92b87-6af0-4efe-9660-5333684ec4e3.png
+animal-monkey 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151350_d77e0d7d-22dd-4b42-97d7-a603d24cfe8b.png
+animal-bear 120 https://d8j0ntlcm91z4.cloudfront.net/user_3JxeITZpRH8E7GU1dc2yZ78R7rq/hf_20261018_151349_f35f844f-ef28-4aeb-a44f-9e955b0cc892.png
