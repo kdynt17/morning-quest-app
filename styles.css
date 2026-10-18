@@ -12,6 +12,49 @@
   --shadow: 0 18px 42px rgba(21, 32, 51, 0.1);
 }
 
+#brain-root { display: grid; gap: 18px; }
+.brain-hero, .brain-game { padding: 26px; background: white; border: 1px solid var(--line); border-radius: 20px; }
+.brain-hero { border-top: 5px solid var(--blue); }
+.brain-hero h2 { font-size: clamp(24px, 5vw, 34px); letter-spacing: -1px; }
+.brain-hero p, .brain-game p { line-height: 1.6; }
+.daily-lineup { display:flex; flex-wrap:wrap; gap:8px; margin:20px 0; }
+.daily-lineup span { border-radius:20px; background:#edf3ff; padding:8px 12px; font-size:13px; }
+.brain-estimate { background:#f0f8ff; padding:18px; margin-top:18px; border-radius:12px; }
+.brain-notice { background:#e5f6ef; padding:16px; border-radius:12px; }
+.brain-rank { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); }
+.brain-rank span { flex:1; overflow-wrap:anywhere; }
+.my-rank { background:#f1f5ff; padding:12px; border-radius:8px; font-size:14px; }
+.practice-games { display:grid; gap:12px; }
+.practice-games details { border:1px solid var(--line); border-radius:12px; padding:16px; }
+summary { cursor:pointer; font-weight:700; padding:8px 0; }
+.legacy-challenge { margin-top:24px; }
+.game-stats { display:flex; justify-content:space-between; gap:12px; font-size:20px; font-variant-numeric:tabular-nums; }
+#brain-progress { width:100%; height:12px; accent-color:var(--blue); margin:16px 0; }
+#brain-question { min-height:260px; text-align:center; }
+.game-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:20px 0; }
+.game-choices.nine { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.game-choice { min-height:76px; font-size:30px; background:#edf3ff; color:var(--ink); border:2px solid #d5e2ff; padding:12px; touch-action:manipulation; }
+.game-choice:hover:not(:disabled) { border-color:var(--blue); background:#e3ecff; }
+.game-choice.picked { opacity:.22; }
+.game-choice.lit { background:#ffd75e; opacity:1; }
+.game-choice:focus-visible, button:focus-visible, summary:focus-visible { outline:3px solid #f59e0b; outline-offset:3px; }
+.mini-grid { display:grid; grid-template-columns:repeat(3,20px); gap:2px; width:max-content; margin:10px auto; }
+.mini-grid i { width:20px; height:20px; background:#e1e6ee; border:1px solid #bcc9dd; }
+.mini-grid .filled { background:#2860cb; }
+.shape-pair { display:flex; justify-content:center; gap:40px; }
+.track-grid,.height-grid { display:grid; grid-template-columns:repeat(3,60px); width:max-content; margin:20px auto; }
+.track-grid span { font-size:42px; height:55px; font-family:monospace; }
+.height-grid { gap:5px; }
+.height-grid span { background:#dbe8ff; border-bottom:calc(var(--height) * 5px + 1px) solid #5c80c0; min-height:52px; font-size:25px; padding:8px; }
+.projection { height:62px; display:flex; align-items:flex-end; justify-content:center; gap:3px; }
+.tower-art { display:block; width:220px; max-width:100%; margin:0 auto; }
+.projection i { width:22px; background:#2860cb; background-image:repeating-linear-gradient(0deg,transparent,transparent 16px,#b6cdf8 16px,#b6cdf8 18px); }
+.ladder-art { font-size:22px; line-height:1.3; white-space:pre; }
+#brain-feedback { min-height:26px; color:#155c3e; }
+#brain-error { color:#a32929; }
+.remember-label { color:#805000; font-weight:700; }
+@media (max-width:420px) { .brain-hero,.brain-game { padding:18px; } .game-choice { min-height:65px; } }
+
 * {
   box-sizing: border-box;
 }

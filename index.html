@@ -3,18 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>아침 창의력 챌린지</title>
+    <title>아침 두뇌 챌린지</title>
     <meta http-equiv="Cache-Control" content="no-store" />
-    <link rel="stylesheet" href="styles.css?v=20260506-store" />
-    <script type="module" src="app.js?v=20260506-store"></script>
+    <link rel="stylesheet" href="styles.css?v=20261018-brain" />
+    <script type="module" src="app.js?v=20261018-brain"></script>
   </head>
   <body>
     <main>
       <section id="auth-screen" class="auth-screen">
         <div class="auth-hero">
           <p class="eyebrow">Morning Quest</p>
-          <h1>아침 창의력 챌린지</h1>
-          <p>매일 아침 문제를 풀고 포인트를 모아 상점 상품을 구입하세요.</p>
+          <h1>아침 두뇌 챌린지</h1>
+          <p>직감 · 기억 · 분석 · 계산 · 지각. 매일 다섯 가지 게임에 도전하고 포인트를 모으세요.</p>
         </div>
         <section class="auth-card" aria-label="로그인과 회원가입">
           <div class="auth-mode-tabs" role="tablist" aria-label="로그인 또는 회원가입">
@@ -30,7 +30,7 @@
           </section>
           <section id="signup-panel" class="auth-panel" aria-label="회원가입">
             <form id="signup-form" class="stack-form">
-              <label>이름 또는 번호<input id="signup-name" type="text" placeholder="1번 김민준" autocomplete="name" required /></label>
+              <label>이름 또는 번호<input id="signup-name" type="text" placeholder="1번 김민준" autocomplete="name" maxlength="80" required /></label>
               <label>이메일<input id="signup-email" type="email" placeholder="202620501@junghwa.sen.ms.kr" autocomplete="email" required /></label>
               <label>비밀번호<input id="signup-password" type="password" placeholder="6자 이상" autocomplete="new-password" minlength="6" required /></label>
               <button class="primary-button" type="submit">가입하고 시작하기</button>
@@ -53,10 +53,12 @@
           <article class="points-card">
             <div>
               <p class="eyebrow">My Points</p>
-              <h2><span id="my-points">0</span>점</h2>
+              <h2><span id="my-points">0</span>P</h2>
             </div>
             <p id="profile-message">오늘 문제를 확인해보세요.</p>
           </article>
+          <div id="brain-root"></div>
+          <details class="legacy-challenge"><summary>선생님의 창의력 문제</summary>
           <article class="question-card">
             <div class="card-topline">
               <span id="challenge-date">오늘</span>
@@ -72,6 +74,7 @@
               <p id="answer-message" class="helper-text"></p>
             </form>
           </article>
+          </details>
         </section>
 
         <section id="leaderboard-page" class="page" data-page="leaderboard">
@@ -91,7 +94,7 @@
               <div><dt>이름</dt><dd id="profile-name">-</dd></div>
               <div><dt>아이디</dt><dd id="profile-email">-</dd></div>
               <div><dt>역할</dt><dd id="profile-role">-</dd></div>
-              <div><dt>포인트</dt><dd><span id="profile-points">0</span>점</dd></div>
+              <div><dt>포인트</dt><dd><span id="profile-points">0</span>P</dd></div>
             </dl>
             <button id="logout-button" class="secondary-button profile-logout" type="button">나가기</button>
           </article>
@@ -126,7 +129,7 @@
         </section>
 
         <nav class="bottom-nav" aria-label="메뉴">
-          <button class="active" type="button" data-target-page="home">문제</button>
+          <button class="active" type="button" data-target-page="home">두뇌 게임</button>
           <button type="button" data-target-page="leaderboard">순위</button>
           <button type="button" data-target-page="store">상점</button>
           <button type="button" data-target-page="profile">내 정보</button>
